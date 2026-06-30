@@ -5,7 +5,7 @@
 const API = (() => {
 
   // ✅ Render deploy hone ke baad apna URL yahan daalo
-  const BASE_URL = window.QR_API_URL || 'https://qr-passport-backend.onrender.com';
+  const BASE_URL = window.QR_API_URL || 'https://qrsephoto-backend.onrender.com';
 
   function getToken(type = 'shop') {
     return localStorage.getItem(type === 'admin' ? 'adminToken' : 'shopToken');
