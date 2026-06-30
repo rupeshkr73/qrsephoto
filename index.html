@@ -242,7 +242,6 @@
     overflow: hidden;
     background: #1e293b;
     border-radius: 12px;
-    touch-action: none;
     user-select: none;
     margin-bottom: 12px;
   }
@@ -252,6 +251,7 @@
     border: 2px solid var(--primary);
     box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
     cursor: move;
+    touch-action: none;
   }
   .crop-handle {
     position: absolute;
@@ -607,12 +607,16 @@
     <div class="success-box">
       <div class="success-icon">🎉</div>
       <div class="success-title">Payment Successful!</div>
-      <div class="success-sub">Aapki <span id="successCopies">4</span> passport size photos ready hain<br/>Print shuru ho raha hai...</div>
+      <div class="success-sub">Aapki <span id="successCopies">4</span> passport size photos ready hain</div>
     </div>
     <div class="card-title" style="margin-bottom:12px;">Print Preview (4×6 inch)</div>
     <canvas id="printCanvas"></canvas>
-    <button class="btn btn-primary" onclick="doPrint()">🖨️ Print Karo</button>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="resetAll()">🔄 Naya Photo</button>
+    <div id="printStatusBox" style="background:#eef2ff;border:1.5px solid #1a56db;border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;">
+      <div id="printStatusIcon" style="font-size:32px;margin-bottom:8px;">⏳</div>
+      <div id="printStatusText" style="font-size:15px;font-weight:700;color:#1a56db;">Print order shop printer ko bheja ja raha hai...</div>
+      <div id="printStatusSub" style="font-size:12px;color:#64748b;margin-top:4px;">Counter se apna print collect karein</div>
+    </div>
+    <button class="btn btn-outline" onclick="resetAll()">🔄 Naya Photo</button>
   </div>
 </div>
 
@@ -635,6 +639,7 @@
 
 <!-- @imgly/background-removal via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/background-removal.js"></script>
+<script src="api.js"></script>
 
 <script>
 // ============ STATE ============
@@ -654,7 +659,15 @@ const state = {
   contrast: 100,
   cropData: null,
   stream: null,
+  shopId: null,           // QR se URL mein aata hai (?shop=SHOPID)
 };
+
+// Shop ID nikalo URL se: index.html?shop=SHOPID
+(function initShopId(){
+  const params = new URLSearchParams(window.location.search);
+  const shop = params.get('shop');
+  if(shop) state.shopId = shop.toUpperCase();
+})();
 
 const screenTitles = {
   1:'Photo Select karo', '1b':'Camera', 2:'BG Option',
@@ -955,7 +968,12 @@ function onHandleTouchStart(e) {
   cropState.origBox = {...cropState.box};
 }
 function onCropMouseMove(e) { handleCropMove(e.clientX, e.clientY); }
-function onCropTouchMove(e) { e.preventDefault(); const t=e.touches[0]; handleCropMove(t.clientX, t.clientY); }
+function onCropTouchMove(e) {
+  if(!cropState.isDragging && !cropState.isResizing) return; // let page scroll normally
+  e.preventDefault();
+  const t=e.touches[0];
+  handleCropMove(t.clientX, t.clientY);
+}
 function handleCropMove(cx, cy) {
   const b = cropState.box;
   const iw = cropState.imgW, ih = cropState.imgH;
@@ -1043,22 +1061,22 @@ async function processPayment() {
     showProcessing('Shop owner se confirm ho raha hai...');
     await delay(1500);
     hideProcessing();
-    onPaymentSuccess();
+    await onPaymentSuccess();
   } else {
     showToast('Online payment: Shop owner ka gateway setup hoga.');
     await delay(800);
-    onPaymentSuccess();
+    await onPaymentSuccess();
   }
 }
 
-function onPaymentSuccess() {
+async function onPaymentSuccess() {
   document.getElementById('successCopies').textContent = state.copies;
   buildPrintCanvas();
   showScreen(6);
-  setTimeout(doPrint, 1200);
+  await submitPrintOrder();
 }
 
-// ============ STEP 6: PRINT CANVAS ============
+// ============ STEP 6: PRINT CANVAS (preview only) ============
 function buildPrintCanvas() {
   const canvas = document.getElementById('printCanvas');
   // 4×6 inch at 150dpi = 600×900 px (preview)
@@ -1098,37 +1116,58 @@ function buildPrintCanvas() {
   img.src = state.croppedImageURL;
 }
 
-function doPrint() {
-  const printArea = document.getElementById('printOnlyArea');
-  const canvas = document.getElementById('printCanvas');
+// ============ SUBMIT PRINT ORDER — backend ki print queue mein jaata hai,
+// Print Agent (.exe) jo shop ke PC pe chal raha hai woh isko uthakar
+// seedha printer pe print bhej dega. Browser print dialog NAHI khulega. ============
+async function submitPrintOrder() {
+  const statusIcon = document.getElementById('printStatusIcon');
+  const statusText = document.getElementById('printStatusText');
+  const statusSub = document.getElementById('printStatusSub');
 
-  // High-res print canvas
-  const printCanvas = document.createElement('canvas');
-  const DPI = 300;
-  const W = 4 * DPI; const H = 6 * DPI;
-  printCanvas.width = W; printCanvas.height = H;
-  const ctx = printCanvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,W,H);
+  if(!state.shopId) {
+    statusIcon.textContent = '⚠️';
+    statusText.textContent = 'Shop ID nahi mila — QR dobara scan karo';
+    statusSub.textContent = 'Counter par sahayata lein';
+    return;
+  }
 
-  const img = new Image();
-  img.onload = function() {
-    const pw = Math.round(35*DPI/25.4);
-    const ph = Math.round(45*DPI/25.4);
-    const gap = 10;
-    const margin = 18;
-    const cols = Math.floor((W-margin*2+gap)/(pw+gap));
-    let col=0,row=0;
-    for(let i=0;i<state.copies;i++){
-      const x=margin+col*(pw+gap);
-      const y=margin+row*(ph+gap);
-      ctx.drawImage(img,x,y,pw,ph);
-      col++; if(col>=cols){col=0;row++;}
+  try {
+    statusText.textContent = 'Photo upload ho raha hai...';
+
+    // Step 1: cropped image ko backend/Cloudinary pe upload karo
+    const blob = await (await fetch(state.croppedImageURL)).blob();
+    const file = new File([blob], 'passport.jpg', { type: 'image/jpeg' });
+    const uploadRes = await API.uploadPhoto(file);
+
+    statusText.textContent = 'Print order shop printer ko bheja ja raha hai...';
+
+    // Step 2: print queue mein order daalo (shop ke Print Agent ko milega)
+    const amount = state.price || 0;
+    const submitRes = await fetch(`${(window.QR_API_URL || 'https://qrsephoto.onrender.com')}/api/print/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopId: state.shopId,
+        photoUrl: uploadRes.url,
+        copies: state.copies,
+        amount
+      })
+    }).then(r => r.json());
+
+    if(submitRes.success) {
+      statusIcon.textContent = '✅';
+      statusText.textContent = 'Print order shop ko mil gaya!';
+      statusSub.textContent = 'Counter se apna print collect karein';
+    } else {
+      throw new Error(submitRes.error || 'Order submit nahi hua');
     }
-    printArea.innerHTML = `<img src="${printCanvas.toDataURL('image/jpeg',1.0)}" style="width:4in;height:6in;display:block;"/>`;
-    window.print();
-  };
-  img.src = state.croppedImageURL;
+  } catch(err) {
+    console.error('Print submit error:', err);
+    statusIcon.textContent = '⚠️';
+    statusText.textContent = 'Order submit nahi ho saka';
+    statusSub.textContent = 'Counter par sahayata lein — ' + (err.message || '');
+  }
+}
 }
 
 // ============ RESET ============
