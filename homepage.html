@@ -682,8 +682,8 @@
       </div>
       <div class="offer-right">
         <div class="price-display">
-          <span class="price-old">₹1,999</span>
-          <span class="price-new"><sup>₹</sup>499</span>
+          <span class="price-old" id="homepagePriceOld">₹1,999</span>
+          <span class="price-new" id="homepagePriceNew"><sup>₹</sup>499</span>
           <div class="price-note">One-time setup fee • No hidden charges</div>
         </div>
       </div>
@@ -919,8 +919,19 @@
   </div>
 </div>
 
+<script src="api.js"></script>
 <script>
-// ===== MODAL =====
+// ===== LOAD REAL PRICING FROM BACKEND =====
+(async function loadHomepagePricing(){
+  try {
+    const res = await API.adminGetPricing();
+    const p = res.pricing || {};
+    if(p.actualPrice) document.getElementById('homepagePriceOld').textContent = '₹'+parseInt(p.actualPrice).toLocaleString('en-IN');
+    if(p.offerPrice) document.getElementById('homepagePriceNew').innerHTML = '<sup>₹</sup>'+parseInt(p.offerPrice).toLocaleString('en-IN');
+  } catch(err) {
+    console.log('Pricing load error (using default):', err.message);
+  }
+})();
 function openShopOwnerLogin() {
   document.getElementById('shopLoginModal').classList.add('open');
   document.getElementById('shopIdInput').focus();
@@ -945,15 +956,17 @@ async function doShopLogin() {
 
   if(!shopId || !pass) { err.textContent = '❌ Shop ID aur Password dono zaroori hain'; err.style.display='block'; return; }
 
-  // TODO: Backend se verify karenge — Phase 3 mein
-  // Demo: SHOP001 / demo123
-  if(shopId === 'SHOP001' && pass === 'demo123') {
-    localStorage.setItem('shopOwnerSession', JSON.stringify({shopId, loginTime: Date.now()}));
+  const btn = document.querySelector('.btn-login');
+  btn.textContent = 'Login ho raha hai...'; btn.disabled = true;
+
+  try {
+    await API.shopLogin(shopId, pass);
     window.location.href = 'shop-owner-panel.html';
-  } else {
-    err.textContent = '❌ Shop ID ya Password galat hai';
+  } catch(e) {
+    err.textContent = '❌ ' + (e.message || 'Shop ID ya Password galat hai');
     err.style.display = 'block';
   }
+  btn.textContent = 'Login Karo →'; btn.disabled = false;
 }
 
 // ===== FAQ TOGGLE =====
