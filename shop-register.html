@@ -240,11 +240,10 @@
       <div class="card-title">🔐 Password Banao</div>
       <div class="card-sub">Yeh password aapko dashboard login ke liye chahiye hoga</div>
 
-      <!-- SHOP ID PREVIEW -->
+      <!-- INFO BOX -->
       <div class="shop-id-box">
-        <div class="shop-id-label">Aapka Shop ID (Login ID)</div>
-        <div class="shop-id-value" id="shopIdDisplay">SHOP---</div>
-        <div class="shop-id-note">Yeh auto-generate hoga — ise save karke rakho</div>
+        <div class="shop-id-label">ℹ️ Aapka Shop ID</div>
+        <div style="font-size:14px;color:var(--muted);margin-top:6px;">Payment complete hone ke baad automatically generate hoga aur agle screen par dikhega</div>
       </div>
 
       <div class="form-group">
@@ -259,7 +258,7 @@
         <input type="password" id="confirmPass" placeholder="Dobara wahi password likho"/>
         <div class="field-err" id="err-confirmPass">Dono passwords match nahi kar rahe</div>
       </div>
-      <div class="form-hint" style="margin-bottom:16px;">💡 Tip: Number + Letter + Symbol use karo — jaise Rupesh@2608</div>
+      <div class="form-hint" style="margin-bottom:16px;">💡 Tip: Number + Letter + Symbol use karo — strong password ke liye</div>
       <button class="btn btn-primary" onclick="goStep(3)">Aage Bado →</button>
       <button class="btn btn-outline" style="margin-top:10px;" onclick="goStep(1)">← Wapas</button>
     </div>
@@ -325,8 +324,8 @@
     <div class="payment-box">
       <div class="pb-label">Setup Fee</div>
       <div class="pb-price-row">
-        <span class="pb-old">₹1,999</span>
-        <span class="pb-new">₹499</span>
+        <span class="pb-old" id="pbOldPrice">₹1,999</span>
+        <span class="pb-new" id="pbNewPrice">₹499</span>
       </div>
       <div class="pb-note">One-time payment • Koi subscription nahi</div>
       <ul class="pb-includes">
@@ -339,7 +338,6 @@
 
     <!-- Summary -->
     <div class="summary-box">
-      <div class="sb-row"><span>Shop ID</span><span class="sb-val" id="summShopId">SHOP---</span></div>
       <div class="sb-row"><span>Owner</span><span class="sb-val" id="summOwner">—</span></div>
       <div class="sb-row"><span>Shop</span><span class="sb-val" id="summShop">—</span></div>
       <div class="sb-row"><span>Mobile</span><span class="sb-val" id="summMobile">—</span></div>
@@ -349,7 +347,7 @@
     <div class="rzp-mock">
       <div class="rzp-logo">Razorpay</div>
       <div style="font-size:13px;color:rgba(255,255,255,0.5);">QR se Passport Photo Nikalo</div>
-      <div class="rzp-amount">₹499</div>
+      <div class="rzp-amount" id="rzpAmount">₹499</div>
       <div class="rzp-note">Payment method chuno</div>
 
       <div class="rzp-upi sel" id="rzpUpi1" onclick="selRzp('rzpUpi1')">
@@ -373,7 +371,7 @@
           <span>SBI, HDFC, ICICI, others</span>
         </div>
       </div>
-      <button class="rzp-pay-btn" onclick="processPayment()">Pay ₹499 →</button>
+      <button class="rzp-pay-btn" onclick="processPayment()" id="rzpPayBtn">Pay ₹499 →</button>
     </div>
 
     <button class="btn btn-outline" style="margin-top:14px;" onclick="goStep(3)">← Wapas</button>
@@ -461,9 +459,26 @@ function goStep(n) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('sc'+n).classList.add('active');
   updateProgress(n);
-  if(n===2) generateShopId();
-  if(n===4) fillSummary();
+  if(n===4) { fillSummary(); loadRealPricing(); }
   window.scrollTo(0,0);
+}
+
+let currentOfferPrice = 499;
+async function loadRealPricing(){
+  try {
+    const res = await API.adminGetPricing();
+    const p = res.pricing || {};
+    if(p.actualPrice) document.getElementById('pbOldPrice').textContent = '₹'+parseInt(p.actualPrice).toLocaleString('en-IN');
+    if(p.offerPrice){
+      currentOfferPrice = parseInt(p.offerPrice);
+      const formatted = '₹'+currentOfferPrice.toLocaleString('en-IN');
+      document.getElementById('pbNewPrice').textContent = formatted;
+      document.getElementById('rzpAmount').textContent = formatted;
+      document.getElementById('rzpPayBtn').textContent = 'Pay '+formatted+' →';
+    }
+  } catch(err) {
+    console.log('Pricing load error (using default ₹499):', err.message);
+  }
 }
 
 function updateProgress(n) {
@@ -518,14 +533,6 @@ function checkField(id, validator, errMsg) {
 function showErr(id, msg) { const e=document.getElementById('err-'+id); if(e){e.textContent=msg;e.style.display='block';} }
 function hideErr(id) { const e=document.getElementById('err-'+id); if(e) e.style.display='none'; }
 
-// ===== SHOP ID GENERATE =====
-function generateShopId() {
-  const prefix = reg.shopName.replace(/\s+/g,'').toUpperCase().slice(0,3) || 'SHP';
-  const num = String(Math.floor(Math.random()*900)+100);
-  reg.shopId = prefix + num;
-  document.getElementById('shopIdDisplay').textContent = reg.shopId;
-}
-
 // ===== PASSWORD STRENGTH =====
 function checkPassStrength() {
   const val = document.getElementById('newPass').value;
@@ -546,7 +553,6 @@ function checkPassStrength() {
 
 // ===== FILL SUMMARY =====
 function fillSummary() {
-  document.getElementById('summShopId').textContent = reg.shopId;
   document.getElementById('summOwner').textContent = reg.ownerName;
   document.getElementById('summShop').textContent = reg.shopName;
   document.getElementById('summMobile').textContent = reg.mobile;
@@ -587,13 +593,11 @@ async function processPayment() {
 
     document.getElementById('credsShopId').textContent = reg.shopId;
     document.getElementById('credsPass').textContent = reg.password;
-    document.getElementById('shopIdDisplay').textContent = reg.shopId;
-    document.getElementById('summShopId').textContent = reg.shopId;
 
     goStep(5);
   } catch (err) {
     alert('❌ ' + (err.message || 'Registration fail ho gaya, dobara try karo'));
-    btn.textContent = 'Pay ₹499 →'; btn.disabled = false;
+    btn.textContent = 'Pay ₹'+currentOfferPrice.toLocaleString('en-IN')+' →'; btn.disabled = false;
   }
 }
 
