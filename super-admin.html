@@ -574,8 +574,9 @@
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<script src="api.js"></script>
 <script>
-// ===== HARDCODED CREDENTIALS =====
+// ===== HARDCODED CREDENTIALS (backend bhi verify karta hai) =====
 const ADMIN_ID = 'rupeshkr73';
 const ADMIN_PASS = 'Rupesh@2608';
 
@@ -583,31 +584,35 @@ const ADMIN_PASS = 'Rupesh@2608';
 document.getElementById('adminPass').addEventListener('keydown', e => { if(e.key==='Enter') doAdminLogin(); });
 document.getElementById('adminId').addEventListener('keydown', e => { if(e.key==='Enter') doAdminLogin(); });
 
-function doAdminLogin(){
+async function doAdminLogin(){
   const id = document.getElementById('adminId').value.trim();
   const pass = document.getElementById('adminPass').value;
   const err = document.getElementById('loginErr');
-  if(id===ADMIN_ID && pass===ADMIN_PASS){
+  const btn = document.querySelector('.btn-login-main');
+  btn.textContent = 'Login ho raha hai...'; btn.disabled = true;
+  try {
+    await API.adminLogin(id, pass);
     err.style.display='none';
-    sessionStorage.setItem('superAdminAuth','1');
     document.getElementById('loginPage').style.display='none';
     document.getElementById('adminUI').style.display='block';
     initAdmin();
-  } else {
+  } catch(e) {
+    err.textContent = '❌ ' + (e.message || 'ID ya Password galat hai');
     err.style.display='block';
     document.getElementById('adminPass').value='';
   }
+  btn.textContent = '🔐 Login Karo'; btn.disabled = false;
 }
 
 // Auto-check session
-if(sessionStorage.getItem('superAdminAuth')==='1'){
+if(localStorage.getItem('adminToken')){
   document.getElementById('loginPage').style.display='none';
   document.getElementById('adminUI').style.display='block';
   initAdmin();
 }
 
 function doAdminLogout(){
-  sessionStorage.removeItem('superAdminAuth');
+  API.adminLogout();
   document.getElementById('adminUI').style.display='none';
   document.getElementById('loginPage').style.display='flex';
   document.getElementById('adminId').value='';
@@ -624,16 +629,27 @@ function initAdmin(){
   loadPricingMgr();
 }
 
-// ===== LOAD DATA =====
-function getShops(){
-  return JSON.parse(localStorage.getItem('shopOwners') || '[]');
+// ===== LOAD DATA (real backend) =====
+let cachedShops = [];
+async function getShops(){
+  try {
+    const res = await API.adminGetShops();
+    cachedShops = res.shops || [];
+    return cachedShops;
+  } catch(err) {
+    console.error('Shops load error:', err.message);
+    if(err.message && err.message.includes('Token')) {
+      doAdminLogout();
+    }
+    return [];
+  }
 }
 
-function loadDashboard(){
-  const shops = getShops();
+async function loadDashboard(){
+  const shops = await getShops();
   document.getElementById('stTotalShops').textContent = shops.length;
   document.getElementById('stTotalRev').textContent = '₹'+(shops.length*499).toLocaleString('en-IN');
-  document.getElementById('stTotalPrints').textContent = '0'; // Phase 5 mein real data
+  document.getElementById('stTotalPrints').textContent = shops.reduce((s,sh)=>s+(sh.totalPrints||0),0);
   document.getElementById('stThisMonth').textContent = '₹'+(shops.filter(s=>{
     const d = new Date(s.registeredAt||0);
     const now = new Date();
@@ -641,8 +657,10 @@ function loadDashboard(){
   }).length * 499).toLocaleString('en-IN');
 
   // Exe link status
-  const exeLink = localStorage.getItem('exeDownloadLink');
-  document.getElementById('dashExeLink').textContent = exeLink || '⚠️ Abhi koi EXE link set nahi hai';
+  try {
+    const exeRes = await API.adminGetExeLink();
+    document.getElementById('dashExeLink').textContent = exeRes.link || '⚠️ Abhi koi EXE link set nahi hai';
+  } catch(e) {}
 
   // Recent shops
   const tbody = document.getElementById('recentShopsTbody');
@@ -661,8 +679,9 @@ function loadDashboard(){
     </tr>`).join('');
 }
 
-function loadShopsTable(){
-  renderShopsTable(getShops());
+async function loadShopsTable(){
+  const shops = await getShops();
+  renderShopsTable(shops);
 }
 
 function renderShopsTable(shops){
@@ -690,7 +709,7 @@ function renderShopsTable(shops){
 
 function filterShops(){
   const q = document.getElementById('shopSearch').value.toLowerCase();
-  const shops = getShops().filter(s =>
+  const shops = cachedShops.filter(s =>
     (s.shopId||'').toLowerCase().includes(q) ||
     (s.shopName||'').toLowerCase().includes(q) ||
     (s.ownerName||'').toLowerCase().includes(q) ||
@@ -699,8 +718,8 @@ function filterShops(){
   renderShopsTable(shops);
 }
 
-function loadRevenue(){
-  const shops = getShops();
+async function loadRevenue(){
+  const shops = cachedShops.length ? cachedShops : await getShops();
   const total = shops.length * 499;
   document.getElementById('revTotal').textContent = '₹'+total.toLocaleString('en-IN');
   document.getElementById('revShops').textContent = shops.length;
@@ -719,11 +738,14 @@ function loadRevenue(){
     </div>`).join('');
 }
 
-// ===== PRICING MANAGER =====
-function loadPricingMgr(){
-  const saved = JSON.parse(localStorage.getItem('adminPricing')||'{}');
-  if(saved.actualPrice) document.getElementById('actualPrice').value = saved.actualPrice;
-  if(saved.offerPrice) document.getElementById('offerPrice').value = saved.offerPrice;
+// ===== PRICING MANAGER (real backend) =====
+async function loadPricingMgr(){
+  try {
+    const res = await API.adminGetPricing();
+    const saved = res.pricing || {};
+    if(saved.actualPrice) document.getElementById('actualPrice').value = saved.actualPrice;
+    if(saved.offerPrice) document.getElementById('offerPrice').value = saved.offerPrice;
+  } catch(e) { console.error(e.message); }
   updatePricePreview();
   document.getElementById('actualPrice').addEventListener('input', updatePricePreview);
   document.getElementById('offerPrice').addEventListener('input', updatePricePreview);
@@ -734,25 +756,32 @@ function updatePricePreview(){
   document.getElementById('previewOld').textContent = '₹'+parseInt(a).toLocaleString('en-IN');
   document.getElementById('previewNew').textContent = '₹'+parseInt(o).toLocaleString('en-IN');
 }
-function savePricingMgr(){
+async function savePricingMgr(){
   const a = parseInt(document.getElementById('actualPrice').value)||1999;
   const o = parseInt(document.getElementById('offerPrice').value)||499;
   if(o>=a){ showToast('⚠️ Offer price actual price se kam hona chahiye'); return; }
-  localStorage.setItem('adminPricing', JSON.stringify({actualPrice:a, offerPrice:o}));
-  showToast('✅ Pricing save ho gayi! Homepage par reflect hogi.');
+  try {
+    await API.adminSavePricing(a, o);
+    showToast('✅ Pricing save ho gayi! Homepage par reflect hogi.');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 function saveDefCopyPricing(){
-  const d4 = parseInt(document.getElementById('def4').value)||20;
-  const d6 = parseInt(document.getElementById('def6').value)||30;
-  const d10 = parseInt(document.getElementById('def10').value)||40;
-  localStorage.setItem('defaultCopyPricing', JSON.stringify({copies4:d4,copies6:d6,copies10:d10}));
-  showToast('✅ Default copy pricing save ho gayi!');
+  // Yeh feature backend mein default copy pricing config route nahi hai abhi,
+  // naye shops register hote waqt automatically 20/30/40 default milta hai.
+  showToast('ℹ️ Naye shops ko already default ₹20/₹30/₹40 milta hai registration ke time.');
 }
 
-// ===== INSTRUCTIONS =====
+// ===== INSTRUCTIONS (real backend) =====
 let instructions = [];
-function loadInstructions(){
-  instructions = JSON.parse(localStorage.getItem('adminInstructions') || '["Dashboard regularly check karte raho naye updates ke liye.","Print Agent .exe install karna na bhulen — auto-print ke liye zaroori hai.","Koi problem ho toh Super Admin se contact karo."]');
+async function loadInstructions(){
+  try {
+    const res = await API.adminGetInstructions();
+    instructions = res.instructions && res.instructions.length
+      ? res.instructions
+      : ["Dashboard regularly check karte raho naye updates ke liye.","Print Agent .exe install karna na bhulen — auto-print ke liye zaroori hai.","Koi problem ho toh Super Admin se contact karo."];
+  } catch(e) {
+    instructions = ["Dashboard regularly check karte raho naye updates ke liye.","Print Agent .exe install karna na bhulen — auto-print ke liye zaroori hai.","Koi problem ho toh Super Admin se contact karo."];
+  }
   renderInstructions();
 }
 function renderInstructions(){
@@ -781,31 +810,40 @@ function deleteInstruction(idx){
   instructions.splice(idx,1);
   renderInstructions();
 }
-function saveInstructions(){
-  localStorage.setItem('adminInstructions', JSON.stringify(instructions));
-  showToast('✅ Instructions save aur publish ho gayi! Sabhi Shop Owner dashboards par dikhenge.');
+async function saveInstructions(){
+  try {
+    await API.adminSaveInstructions(instructions);
+    showToast('✅ Instructions save aur publish ho gayi! Sabhi Shop Owner dashboards par dikhenge.');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
-// ===== EXE LINK =====
-function loadExeLink(){
-  const link = localStorage.getItem('exeDownloadLink') || '';
-  document.getElementById('exeCurrentLink').textContent = link || 'Abhi koi link set nahi hai';
-  document.getElementById('exeLinkInput').value = link;
+// ===== EXE LINK (real backend) =====
+async function loadExeLink(){
+  try {
+    const res = await API.adminGetExeLink();
+    const link = res.link || '';
+    document.getElementById('exeCurrentLink').textContent = link || 'Abhi koi link set nahi hai';
+    document.getElementById('exeLinkInput').value = link;
+  } catch(e) {
+    document.getElementById('exeCurrentLink').textContent = 'Abhi koi link set nahi hai';
+  }
 }
-function saveExeLink(){
+async function saveExeLink(){
   const link = document.getElementById('exeLinkInput').value.trim();
   if(!link){ showToast('⚠️ Link daalna zaroori hai'); return; }
   if(!link.startsWith('http')){ showToast('⚠️ Valid URL daalo (https:// se shuru hona chahiye)'); return; }
-  localStorage.setItem('exeDownloadLink', link);
-  document.getElementById('exeCurrentLink').textContent = link;
-  document.getElementById('dashExeLink').textContent = link;
-  showToast('✅ EXE link save ho gaya! Sabhi Shop Owner dashboards update ho gaye.');
+  try {
+    await API.adminSaveExeLink(link);
+    document.getElementById('exeCurrentLink').textContent = link;
+    document.getElementById('dashExeLink').textContent = link;
+    showToast('✅ EXE link save ho gaya! Sabhi Shop Owner dashboards update ho gaye.');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
 // ===== SHOP MODAL =====
 let modalShopId = null;
 function openShopModal(shopId){
-  const shop = getShops().find(s=>s.shopId===shopId);
+  const shop = cachedShops.find(s=>s.shopId===shopId);
   if(!shop) return;
   modalShopId = shopId;
   document.getElementById('modalTitle').textContent = shop.shopName+' ('+shopId+')';
@@ -826,14 +864,17 @@ function closeShopModal(){ document.getElementById('shopModal').classList.remove
 document.getElementById('shopModal').addEventListener('click',function(e){ if(e.target===this) closeShopModal(); });
 
 function confirmDeleteShop(shopId){ modalShopId=shopId; openShopModal(shopId); }
-function deleteShop(){
+async function deleteShop(){
   if(!modalShopId){ return; }
   if(!confirm('Kya aap "'+modalShopId+'" ko delete karna chahte ho? Yeh action undo nahi ho sakta!')) return;
-  let shops = getShops().filter(s=>s.shopId!==modalShopId);
-  localStorage.setItem('shopOwners', JSON.stringify(shops));
-  closeShopModal();
-  loadDashboard(); loadShopsTable(); loadRevenue();
-  showToast('🗑️ Shop delete ho gayi: '+modalShopId);
+  try {
+    await API.adminDeleteShop(modalShopId);
+    closeShopModal();
+    await loadDashboard(); await loadShopsTable(); await loadRevenue();
+    showToast('🗑️ Shop delete ho gayi: '+modalShopId);
+  } catch(err) {
+    showToast('❌ '+(err.message||'Delete fail ho gaya'));
+  }
 }
 
 // ===== PANEL NAV =====

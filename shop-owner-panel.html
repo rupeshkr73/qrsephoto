@@ -677,6 +677,7 @@
 <!-- QR CANVAS -->
 <canvas id="qrCanvas" style="display:none;"></canvas>
 
+<script src="api.js"></script>
 <script>
 // ===== INIT =====
 let shopData = {
@@ -687,19 +688,37 @@ let shopData = {
   loginTime: Date.now()
 };
 
-// Load session
-(function init(){
-  const session = JSON.parse(localStorage.getItem('shopOwnerSession') || 'null');
-  if(!session){ window.location.href='homepage.html'; return; }
-  const owners = JSON.parse(localStorage.getItem('shopOwners') || '[]');
-  const found = owners.find(o => o.shopId === session.shopId);
-  if(found){
-    shopData = {...shopData, ...found};
-    shopData.loginTime = session.loginTime;
+// Load session — real backend se data laata hai
+let qrDataURL = null;
+(async function init(){
+  const token = localStorage.getItem('shopToken');
+  if(!token){ window.location.href='homepage.html'; return; }
+  try {
+    const res = await API.shopGetMe();
+    shopData = {...shopData, ...res.shop};
+    shopData.loginTime = Date.now(); // approx, real expiry backend mein hai
+    renderAll();
+    startSessionTimer();
+    loadQR();
+  } catch(err) {
+    console.error('Session error:', err.message);
+    alert('⚠️ Session expire ho gaya ya login invalid hai. Dobara login karo.');
+    window.location.href='homepage.html';
   }
-  renderAll();
-  startSessionTimer();
 })();
+
+async function loadQR(){
+  try {
+    const res = await API.shopGetQR();
+    qrDataURL = res.qrDataURL;
+    const qrImg = document.getElementById('qrPlaceholderImg');
+    if(qrImg) qrImg.src = qrDataURL;
+    const qp = document.querySelector('.qr-placeholder');
+    if(qp) qp.innerHTML = `<img src="${qrDataURL}" style="width:100%;height:100%;border-radius:10px;object-fit:contain;"/>`;
+  } catch(err) {
+    console.error('QR load error:', err.message);
+  }
+}
 
 function renderAll(){
   // Sidebar
@@ -722,7 +741,7 @@ function renderAll(){
   document.getElementById('price10').value = p.copies10||40;
   // Quick status
   renderQuickStatus();
-  // Load admin instructions from localStorage (super admin sets these)
+  // Load admin instructions from backend (super admin sets these)
   loadInstructions();
 }
 
@@ -785,15 +804,17 @@ function showPanel(id){
   window.scrollTo(0,0);
 }
 
-// ===== SAVE FUNCTIONS =====
-function savePricing(){
+// ===== SAVE FUNCTIONS (real backend calls) =====
+async function savePricing(){
   const p4 = parseInt(document.getElementById('price4').value)||20;
   const p6 = parseInt(document.getElementById('price6').value)||30;
   const p10 = parseInt(document.getElementById('price10').value)||40;
-  shopData.pricing = {copies4:p4,copies6:p6,copies10:p10};
-  saveToStorage();
-  renderQuickStatus();
-  showToast('✅ Pricing save ho gayi! QR par bhi apply ho gaya.');
+  try {
+    await API.shopUpdatePricing(p4, p6, p10);
+    shopData.pricing = {copies4:p4,copies6:p6,copies10:p10};
+    renderQuickStatus();
+    showToast('✅ Pricing save ho gayi! QR par bhi apply ho gaya.');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
 let selectedPayMode = 'counter';
@@ -805,19 +826,28 @@ function selectPayMode(mode){
     el.querySelector('.ti-check').textContent = m===mode?'✓':'';
   });
 }
-function savePayMode(){
-  shopData.paymentMode = selectedPayMode;
-  saveToStorage(); renderQuickStatus();
-  showToast('✅ Payment mode save ho gaya!');
+async function savePayMode(){
+  try {
+    await API.shopUpdatePaymentMode(selectedPayMode);
+    shopData.paymentMode = selectedPayMode;
+    renderQuickStatus();
+    showToast('✅ Payment mode save ho gaya!');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
-function saveGateway(){
+async function saveGateway(){
   const rzpKey = document.getElementById('rzpKeyId').value;
   const rzpSec = document.getElementById('rzpSecret').value;
+  const ppeId = document.getElementById('ppeMerchantId').value;
+  const ppeSalt = document.getElementById('ppeSaltKey').value;
   if(rzpKey && !rzpKey.startsWith('rzp_')){ showToast('⚠️ Razorpay Key ID "rzp_" se shuru hona chahiye'); return; }
-  shopData.gatewayKeys = { razorpay:{keyId:rzpKey,secret:rzpSec} };
-  saveToStorage();
-  showToast('✅ Gateway keys save ho gayi!');
+  try {
+    await API.shopUpdateGateway({
+      razorpayKeyId: rzpKey, razorpaySecret: rzpSec,
+      phonepeMerchantId: ppeId, phonepeSaltKey: ppeSalt
+    });
+    showToast('✅ Gateway keys save ho gayi!');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
 let selectedPrinter = 'auto';
@@ -830,47 +860,52 @@ function selectPrinter(el){
   el.querySelector('.pi-check').textContent='✓';
   selectedPrinter = el.dataset.printer;
 }
-function savePrinter(){
-  shopData.printer = selectedPrinter;
-  saveToStorage(); renderQuickStatus();
-  showToast('✅ Printer save ho gaya!');
+async function savePrinter(){
+  try {
+    await API.shopUpdatePrinter(selectedPrinter);
+    shopData.printer = selectedPrinter;
+    renderQuickStatus();
+    showToast('✅ Printer save ho gaya!');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
-function saveShopDetails(){
+async function saveShopDetails(){
   const name = document.getElementById('editShopName').value.trim();
   const owner = document.getElementById('editOwnerName').value.trim();
   const mobile = document.getElementById('editMobile').value.trim();
   if(!name||!owner||!mobile){ showToast('⚠️ Naam, Shop Name aur Mobile zaroori hain'); return; }
   if(!/^\d{10}$/.test(mobile)){ showToast('⚠️ Valid 10-digit mobile number dalo'); return; }
-  shopData.shopName = name;
-  shopData.ownerName = owner;
-  shopData.mobile = mobile;
-  shopData.address = document.getElementById('editAddress').value.trim();
-  shopData.city = document.getElementById('editCity').value.trim();
-  shopData.state = document.getElementById('editState').value;
-  shopData.email = document.getElementById('editEmail').value.trim();
-  saveToStorage(); renderAll();
-  showToast('✅ Shop details save ho gayi!');
+  const payload = {
+    shopName: name, ownerName: owner, mobile: mobile,
+    address: document.getElementById('editAddress').value.trim(),
+    city: document.getElementById('editCity').value.trim(),
+    state: document.getElementById('editState').value,
+    email: document.getElementById('editEmail').value.trim()
+  };
+  try {
+    await API.shopUpdateDetails(payload);
+    shopData = {...shopData, ...payload};
+    renderAll();
+    showToast('✅ Shop details save ho gayi!');
+  } catch(err) { showToast('❌ '+(err.message||'Error aaya')); }
 }
 
-function saveToStorage(){
-  const owners = JSON.parse(localStorage.getItem('shopOwners') || '[]');
-  const idx = owners.findIndex(o=>o.shopId===shopData.shopId);
-  if(idx>=0) owners[idx]={...owners[idx],...shopData};
-  else owners.push(shopData);
-  localStorage.setItem('shopOwners', JSON.stringify(owners));
-}
-
-// ===== INSTRUCTIONS =====
-function loadInstructions(){
-  const instrs = JSON.parse(localStorage.getItem('adminInstructions') || '[]');
-  if(instrs.length===0){
-    document.getElementById('instrBadge').style.display='none'; return;
+// ===== INSTRUCTIONS (from backend) =====
+async function loadInstructions(){
+  try {
+    const res = await API.adminGetInstructions();
+    const instrs = res.instructions || [];
+    if(instrs.length===0){
+      document.getElementById('instrBadge').style.display='none';
+      return;
+    }
+    document.getElementById('instrBadge').style.display='block';
+    const html = instrs.map((ins,i)=>`<div class="instr-item"><div class="instr-num">${i+1}</div><div>${ins}</div></div>`).join('');
+    document.getElementById('instrContent').innerHTML = html;
+    document.getElementById('instrFullContent').innerHTML = html;
+  } catch(err) {
+    console.error('Instructions load error:', err.message);
   }
-  document.getElementById('instrBadge').style.display='block';
-  const html = instrs.map((ins,i)=>`<div class="instr-item"><div class="instr-num">${i+1}</div><div>${ins}</div></div>`).join('');
-  document.getElementById('instrContent').innerHTML = html;
-  document.getElementById('instrFullContent').innerHTML = html;
 }
 
 // ===== KEY TOGGLE =====
@@ -879,50 +914,26 @@ function toggleKey(id){
   inp.type = inp.type==='password'?'text':'password';
 }
 
-// ===== QR DOWNLOAD =====
+// ===== QR DOWNLOAD (real QR from backend) =====
 function downloadQRCode(){
-  const canvas = document.getElementById('qrCanvas');
-  canvas.width=420; canvas.height=520;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,420,520);
-  ctx.fillStyle='#1a56db'; ctx.fillRect(0,0,420,80);
-  ctx.fillStyle='white';
-  ctx.font='bold 18px Segoe UI,sans-serif'; ctx.textAlign='center';
-  ctx.fillText('📸 QR se Passport Photo Nikalo',210,32);
-  ctx.font='13px Segoe UI,sans-serif';
-  ctx.fillText(shopData.shopName+' | '+shopData.shopId,210,58);
-  ctx.fillStyle='#f0f4ff'; ctx.fillRect(90,100,240,240);
-  ctx.fillStyle='#1a56db';
-  ctx.font='bold 15px Segoe UI'; ctx.fillText('QR CODE',210,215);
-  ctx.font='12px Segoe UI'; ctx.fillStyle='#64748b';
-  ctx.fillText('(Backend se real QR',210,240); ctx.fillText('aayega — Phase 5)',210,260);
-  ctx.strokeStyle='#1a56db'; ctx.lineWidth=3; ctx.strokeRect(90,100,240,240);
-  ctx.fillStyle='#0f172a'; ctx.fillRect(0,390,420,130);
-  ctx.fillStyle='white'; ctx.font='bold 15px Segoe UI';
-  ctx.fillText('Scan karo → Photo lo → Print karo!',210,420);
-  ctx.font='13px Segoe UI'; ctx.fillStyle='rgba(255,255,255,0.6)';
-  ctx.fillText('4 copies ₹'+shopData.pricing.copies4+' | 6 copies ₹'+shopData.pricing.copies6+' | 10 copies ₹'+shopData.pricing.copies10,210,448);
-  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='11px Segoe UI';
-  ctx.fillText('Shop ID: '+shopData.shopId,210,480);
+  if(!qrDataURL){ showToast('⚠️ QR abhi load ho raha hai, thoda wait karo.'); return; }
   const a=document.createElement('a');
-  a.href=canvas.toDataURL('image/png');
+  a.href=qrDataURL;
   a.download='QR_'+shopData.shopId+'.png';
   a.click();
   showToast('✅ QR Code download ho raha hai!');
 }
 
 function downloadExe(){
-  const exeLink = localStorage.getItem('exeDownloadLink');
-  if(exeLink && exeLink !== '#'){
-    window.open(exeLink,'_blank');
-  } else {
-    showToast('⚠️ .exe link Super Admin se milega. Thoda wait karo.');
-  }
+  API.adminGetExeLink().then(d=>{
+    if(d.link) window.open(d.link,'_blank');
+    else showToast('⚠️ .exe link Super Admin se milega. Thoda wait karo.');
+  }).catch(()=> showToast('⚠️ .exe link Super Admin se milega. Thoda wait karo.'));
 }
 
 // ===== LOGOUT =====
 function doLogout(){
-  localStorage.removeItem('shopOwnerSession');
+  API.shopLogout();
   window.location.href='homepage.html';
 }
 

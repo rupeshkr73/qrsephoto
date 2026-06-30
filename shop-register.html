@@ -446,6 +446,7 @@
 <!-- QR CANVAS (hidden) -->
 <canvas id="qrCanvas" style="display:none;"></canvas>
 
+<script src="api.js"></script>
 <script>
 // ===== STATE =====
 const reg = {
@@ -558,83 +559,64 @@ function selRzp(id) {
 }
 
 // ===== PROCESS PAYMENT =====
+let lastQrDataURL = null;
 async function processPayment() {
   const btn = document.querySelector('.rzp-pay-btn');
   btn.textContent = 'Processing...'; btn.disabled = true;
-  await delay(2200);
-  // Save to localStorage (Phase 5 mein Firebase se replace hoga)
-  const shopData = {
-    shopId: reg.shopId, ownerName: reg.ownerName, mobile: reg.mobile,
-    shopName: reg.shopName, address: reg.address, city: reg.city,
-    state: reg.state, email: reg.email,
-    password: reg.password,
-    registeredAt: new Date().toISOString(),
-    pricing: {copies4:20, copies6:30, copies10:40},
-    paymentMode: 'counter', printer: 'auto',
-    status: 'active'
-  };
-  const existing = JSON.parse(localStorage.getItem('shopOwners') || '[]');
-  existing.push(shopData);
-  localStorage.setItem('shopOwners', JSON.stringify(existing));
-  localStorage.setItem('shopOwnerSession', JSON.stringify({shopId: reg.shopId, loginTime: Date.now()}));
-  document.getElementById('credsShopId').textContent = reg.shopId;
-  document.getElementById('credsPass').textContent = reg.password;
-  goStep(5);
+  await delay(1200);
+
+  try {
+    // Real backend call — yeh asli Shop register karega Firebase mein
+    const result = await API.shopRegister({
+      ownerName: reg.ownerName,
+      mobile: reg.mobile,
+      shopName: reg.shopName,
+      address: reg.address,
+      city: reg.city,
+      state: reg.state,
+      email: reg.email,
+      password: reg.password
+    });
+
+    // Backend se asli Shop ID + QR aata hai
+    reg.shopId = result.shopId;
+    lastQrDataURL = result.qrDataURL;
+
+    // Auto-login: turant session bana do
+    await API.shopLogin(reg.shopId, reg.password);
+
+    document.getElementById('credsShopId').textContent = reg.shopId;
+    document.getElementById('credsPass').textContent = reg.password;
+    document.getElementById('shopIdDisplay').textContent = reg.shopId;
+    document.getElementById('summShopId').textContent = reg.shopId;
+
+    goStep(5);
+  } catch (err) {
+    alert('❌ ' + (err.message || 'Registration fail ho gaya, dobara try karo'));
+    btn.textContent = 'Pay ₹499 →'; btn.disabled = false;
+  }
 }
 
 // ===== QR DOWNLOAD =====
 function downloadQR() {
-  const canvas = document.getElementById('qrCanvas');
-  canvas.width = 400; canvas.height = 500;
-  const ctx = canvas.getContext('2d');
-  // Background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,400,500);
-  // Header
-  ctx.fillStyle = '#1a56db';
-  ctx.fillRect(0,0,400,80);
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 20px Segoe UI, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('📸 QR se Passport Photo Nikalo', 200, 35);
-  ctx.font = '14px Segoe UI, sans-serif';
-  ctx.fillText(reg.shopName + ' | ' + reg.shopId, 200, 60);
-  // QR placeholder (real QR Phase 5 mein)
-  ctx.fillStyle = '#f0f4ff';
-  ctx.fillRect(80, 100, 240, 240);
-  ctx.fillStyle = '#1a56db';
-  ctx.font = 'bold 16px Segoe UI';
-  ctx.fillText('QR CODE', 200, 215);
-  ctx.font = '13px Segoe UI';
-  ctx.fillStyle = '#64748b';
-  ctx.fillText('(Backend connect hone ke baad', 200, 240);
-  ctx.fillText('real QR yahan aayega)', 200, 260);
-  // Border
-  ctx.strokeStyle = '#1a56db';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(80, 100, 240, 240);
-  // Footer
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(0, 380, 400, 120);
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 16px Segoe UI';
-  ctx.fillText('Scan karo → Photo Upload karo → Print!', 200, 415);
-  ctx.font = '13px Segoe UI';
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('4 copies ₹20 | 6 copies ₹30 | 10 copies ₹40', 200, 445);
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.font = '12px Segoe UI';
-  ctx.fillText('Shop ID: ' + reg.shopId + ' | ' + reg.city, 200, 475);
-
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = `QR_${reg.shopId}_${reg.shopName.replace(/\s/g,'_')}.png`;
-  a.click();
+  if (lastQrDataURL) {
+    // Real QR mil gaya backend se — seedha download karo
+    const a = document.createElement('a');
+    a.href = lastQrDataURL;
+    a.download = `QR_${reg.shopId}_${reg.shopName.replace(/\s/g,'_')}.png`;
+    a.click();
+    return;
+  }
+  alert('⚠️ QR abhi load nahi hua, thoda wait karke dobara try karo.');
 }
 
 function downloadExe() {
-  // Phase 5 mein Super Admin ka real .exe link aayega
-  alert('⚠️ Print Agent .exe download:\n\nFull backend setup ke baad Super Admin dwara link provide kiya jayega.\n\nAbhi ke liye dashboard mein "Downloads" section mein dekho.');
+  API.adminGetExeLink().then(d => {
+    if (d.link) window.open(d.link, '_blank');
+    else alert('⚠️ Print Agent .exe link Super Admin se milega — thoda wait karo.');
+  }).catch(() => {
+    alert('⚠️ Print Agent .exe link Super Admin se milega — thoda wait karo.');
+  });
 }
 
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
