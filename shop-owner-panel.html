@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Shop Owner Dashboard — QR se Passport Photo Nikalo</title>
+<style>
+  :root{
+    --blue:#1a56db;--blue-dark:#1e429f;--blue-light:#eef2ff;
+    --green:#16a34a;--green-light:#f0fdf4;
+    --red:#dc2626;--yellow:#f59e0b;--purple:#7c3aed;
+    --ink:#0f172a;--muted:#64748b;--border:#e2e8f0;
+    --bg:#f8faff;--white:#fff;
+    --shadow:0 4px 20px rgba(26,86,219,0.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;}
+
+  /* SIDEBAR */
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:240px;
+    background:#0f172a;color:white;
+    display:flex;flex-direction:column;
+    z-index:200;transition:transform 0.3s;
+  }
+  .sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,0.08);}
+  .sidebar-logo .sl-top{font-size:20px;font-weight:900;color:white;}
+  .sidebar-logo .sl-top span{color:#60a5fa;}
+  .sidebar-logo .sl-sub{font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px;}
+  .sidebar-shopinfo{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);}
+  .si-name{font-size:14px;font-weight:700;color:white;}
+  .si-id{font-size:12px;color:rgba(255,255,255,0.4);margin-top:2px;}
+  .si-badge{display:inline-block;background:#16a34a;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:4px;}
+  nav{flex:1;padding:12px 0;overflow-y:auto;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:11px 18px;cursor:pointer;
+    font-size:14px;font-weight:600;color:rgba(255,255,255,0.65);
+    border-left:3px solid transparent;
+    transition:all 0.2s;text-decoration:none;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.06);color:white;}
+  .nav-item.active{background:rgba(96,165,250,0.12);color:#60a5fa;border-left-color:#60a5fa;}
+  .nav-icon{font-size:18px;width:22px;text-align:center;}
+  .nav-label{flex:1;}
+  .nav-badge{background:var(--blue);color:white;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;}
+  .sidebar-bottom{padding:14px 18px;border-top:1px solid rgba(255,255,255,0.08);}
+  .logout-btn{width:100%;background:rgba(220,38,38,0.15);color:#fca5a5;border:1px solid rgba(220,38,38,0.25);padding:10px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+  .logout-btn:hover{background:rgba(220,38,38,0.25);}
+
+  /* MOBILE TOPBAR */
+  .mobile-topbar{
+    display:none;position:fixed;top:0;left:0;right:0;height:56px;
+    background:#0f172a;color:white;
+    align-items:center;justify-content:space-between;
+    padding:0 16px;z-index:199;
+  }
+  .hamburger{background:none;border:none;color:white;font-size:22px;cursor:pointer;padding:4px;}
+  .mobile-title{font-size:15px;font-weight:800;}
+
+  /* OVERLAY */
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:199;}
+
+  /* MAIN */
+  .main{margin-left:240px;min-height:100vh;}
+  .topbar{
+    background:white;border-bottom:1px solid var(--border);
+    padding:0 24px;height:60px;
+    display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:100;
+  }
+  .topbar-title{font-size:18px;font-weight:800;color:var(--ink);}
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .home-link{font-size:13px;color:var(--blue);text-decoration:none;font-weight:600;padding:6px 14px;border:1.5px solid var(--blue);border-radius:8px;transition:all 0.2s;}
+  .home-link:hover{background:var(--blue-light);}
+  .content{padding:24px;}
+
+  /* PANELS */
+  .panel{display:none;animation:fadeIn 0.3s ease;}
+  .panel.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px;}
+  .stat-card{background:white;border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);border:1.5px solid var(--border);}
+  .stat-icon{font-size:28px;margin-bottom:8px;}
+  .stat-val{font-size:28px;font-weight:900;color:var(--blue);}
+  .stat-label{font-size:13px;color:var(--muted);margin-top:2px;}
+
+  /* CARDS */
+  .card{background:white;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);margin-bottom:20px;border:1.5px solid var(--border);}
+  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .card-title{font-size:16px;font-weight:800;color:var(--ink);}
+  .card-sub{font-size:13px;color:var(--muted);margin-top:3px;}
+
+  /* QR BOX */
+  .qr-box{background:linear-gradient(135deg,var(--blue),var(--blue-dark));border-radius:var(--radius);padding:24px;color:white;text-align:center;margin-bottom:20px;}
+  .qr-placeholder{width:160px;height:160px;background:white;border-radius:12px;margin:16px auto;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;}
+  .qr-placeholder .qp-icon{font-size:40px;}
+  .qr-placeholder .qp-text{font-size:12px;color:var(--muted);font-weight:700;}
+  .qr-shop-id{font-size:22px;font-weight:900;letter-spacing:3px;margin-top:8px;}
+  .qr-actions{display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;}
+  .qr-btn{background:rgba(255,255,255,0.15);color:white;border:1.5px solid rgba(255,255,255,0.3);padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+  .qr-btn:hover{background:rgba(255,255,255,0.25);}
+
+  /* DOWNLOAD CARDS */
+  .dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+  .dl-card{background:var(--bg);border:2px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;transition:all 0.2s;}
+  .dl-card:hover{border-color:var(--blue);transform:translateY(-2px);box-shadow:var(--shadow);}
+  .dl-card.primary{border-color:var(--blue);background:var(--blue-light);}
+  .dl-icon{font-size:32px;margin-bottom:8px;}
+  .dl-name{font-size:14px;font-weight:800;margin-bottom:4px;}
+  .dl-note{font-size:12px;color:var(--muted);}
+  .dl-btn-label{display:inline-block;margin-top:8px;background:var(--blue);color:white;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;}
+
+  /* INSTRUCTIONS BOX */
+  .instr-box{background:#fffbeb;border:1.5px solid #fde68a;border-radius:var(--radius);padding:18px;}
+  .instr-title{font-size:14px;font-weight:800;color:#92400e;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+  .instr-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #fde68a;font-size:14px;color:#78350f;}
+  .instr-item:last-child{border-bottom:none;}
+  .instr-num{background:#f59e0b;color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}
+
+  /* FORM ELEMENTS */
+  .form-group{margin-bottom:16px;}
+  .form-group label{font-size:13px;font-weight:700;color:var(--ink);display:block;margin-bottom:6px;}
+  .form-group input,.form-group select,.form-group textarea{
+    width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;
+    font-size:15px;color:var(--ink);outline:none;transition:border-color 0.2s;
+    background:white;font-family:inherit;
+  }
+  .form-group input:focus,.form-group select:focus{border-color:var(--blue);}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  /* PRICE INPUTS */
+  .price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
+  .price-input-card{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:16px;text-align:center;}
+  .pic-copies{font-size:24px;font-weight:900;color:var(--blue);margin-bottom:4px;}
+  .pic-label{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  .price-input-card input{text-align:center;font-size:20px;font-weight:800;border-radius:8px;padding:10px;}
+
+  /* TOGGLE */
+  .toggle-group{display:flex;flex-direction:column;gap:10px;}
+  .toggle-item{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;}
+  .toggle-item.selected{border-color:var(--blue);background:var(--blue-light);}
+  .ti-left{display:flex;align-items:center;gap:10px;}
+  .ti-icon{font-size:22px;}
+  .ti-title{font-size:14px;font-weight:700;}
+  .ti-sub{font-size:12px;color:var(--muted);}
+  .ti-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;transition:all 0.2s;}
+  .toggle-item.selected .ti-check{background:var(--blue);border-color:var(--blue);color:white;}
+
+  /* PRINTER LIST */
+  .printer-list{display:flex;flex-direction:column;gap:8px;}
+  .printer-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s;}
+  .printer-item:hover{border-color:var(--blue);}
+  .printer-item.selected{border-color:var(--blue);background:var(--blue-light);}
+  .pi-icon{font-size:20px;}
+  .pi-name{font-size:14px;font-weight:700;flex:1;}
+  .pi-badge{font-size:11px;color:var(--muted);}
+  .pi-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;transition:all 0.2s;}
+  .printer-item.selected .pi-check{background:var(--blue);border-color:var(--blue);color:white;}
+
+  /* API KEY INPUT */
+  .api-card{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:18px;margin-bottom:12px;}
+  .ac-header{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .ac-icon{font-size:22px;}
+  .ac-title{font-size:15px;font-weight:800;}
+  .ac-sub{font-size:12px;color:var(--muted);}
+  .key-input-wrap{position:relative;}
+  .key-input-wrap input{padding-right:44px;}
+  .key-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;}
+
+  /* SAVE SUCCESS TOAST */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:white;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;opacity:0;transition:opacity 0.3s;z-index:9999;white-space:nowrap;pointer-events:none;}
+  .toast.show{opacity:1;}
+
+  /* BUTTONS */
+  .btn{padding:13px 20px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;}
+  .btn-primary{background:var(--blue);color:white;}
+  .btn-primary:hover{background:var(--blue-dark);}
+  .btn-success{background:var(--green);color:white;}
+  .btn-success:hover{background:#15803d;}
+  .btn-block{display:block;width:100%;text-align:center;}
+  .btn-sm{padding:8px 16px;font-size:13px;}
+
+  /* IMPORTANT LINKS */
+  .imp-links{display:flex;flex-direction:column;gap:8px;}
+  .imp-link{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;text-decoration:none;color:var(--ink);transition:all 0.2s;}
+  .imp-link:hover{border-color:var(--blue);background:var(--blue-light);}
+  .il-icon{font-size:20px;}
+  .il-text{flex:1;font-size:14px;font-weight:600;}
+  .il-arrow{color:var(--blue);font-size:14px;}
+
+  /* SESSION TIMER */
+  .session-bar{background:#fffbeb;border-bottom:1px solid #fde68a;padding:6px 24px;font-size:12px;color:#92400e;display:flex;justify-content:space-between;align-items:center;}
+
+  @media(max-width:768px){
+    .sidebar{transform:translateX(-100%);}
+    .sidebar.open{transform:none;}
+    .sidebar-overlay.open{display:block;}
+    .mobile-topbar{display:flex;}
+    .main{margin-left:0;}
+    .topbar{display:none;}
+    .content{padding:16px;padding-top:68px;}
+    .form-row{grid-template-columns:1fr;}
+    .dl-grid{grid-template-columns:1fr;}
+    .price-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="sl-top">📸 QR <span>Passport</span></div>
+    <div class="sl-sub">Shop Owner Panel</div>
+  </div>
+  <div class="sidebar-shopinfo">
+    <div class="si-name" id="sideShopName">Mahato Net Cafe</div>
+    <div class="si-id" id="sideShopId">ID: SHOP001</div>
+    <div class="si-badge">● Active</div>
+  </div>
+  <nav>
+    <a class="nav-item active" onclick="showPanel('dashboard')">
+      <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('downloads')">
+      <span class="nav-icon">⬇️</span><span class="nav-label">Downloads</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('pricing')">
+      <span class="nav-icon">💰</span><span class="nav-label">Print Pricing</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('payment')">
+      <span class="nav-icon">💳</span><span class="nav-label">Payment Mode</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('gateway')">
+      <span class="nav-icon">🔑</span><span class="nav-label">Payment Gateway</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('printer')">
+      <span class="nav-icon">🖨️</span><span class="nav-label">Printer Select</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('shop-details')">
+      <span class="nav-icon">🏪</span><span class="nav-label">Shop Details</span>
+    </a>
+    <a class="nav-item" onclick="showPanel('instructions')">
+      <span class="nav-icon">📋</span><span class="nav-label">Instructions</span><span class="nav-badge" id="instrBadge" style="display:none;">New</span>
+    </a>
+  </nav>
+  <div class="sidebar-bottom">
+    <button class="logout-btn" onclick="doLogout()">🚪 Logout</button>
+  </div>
+</div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- MOBILE TOPBAR -->
+<div class="mobile-topbar">
+  <button class="hamburger" onclick="openSidebar()">☰</button>
+  <span class="mobile-title" id="mobileTitle">Dashboard</span>
+  <a href="homepage.html" style="color:white;font-size:13px;font-weight:600;">🏠</a>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- SESSION BAR -->
+  <div class="session-bar">
+    <span>⏱️ Session: <strong id="sessionTimer">24:00:00</strong> baki</span>
+    <a href="homepage.html" class="home-link" style="font-size:12px;padding:4px 10px;">🏠 Home</a>
+  </div>
+
+  <!-- DESKTOP TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-title" id="topbarTitle">📊 Dashboard</div>
+    <div class="topbar-right">
+      <a href="homepage.html" class="home-link">🏠 Home</a>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">🖨️</div>
+          <div class="stat-val" id="statPrints">0</div>
+          <div class="stat-label">Total Prints Today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <div class="stat-val" id="statEarnings">₹0</div>
+          <div class="stat-label">Aaj ki Kamai</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-val" id="statMonthly">₹0</div>
+          <div class="stat-label">Is Mahine</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-val" id="statTotal">0</div>
+          <div class="stat-label">Total Customers</div>
+        </div>
+      </div>
+
+      <!-- QR CODE -->
+      <div class="qr-box">
+        <div style="font-size:15px;font-weight:700;opacity:0.85;">Aapka Shop QR Code</div>
+        <div class="qr-placeholder">
+          <div class="qp-icon">📱</div>
+          <div class="qp-text">QR CODE</div>
+          <div style="font-size:10px;color:#94a3b8;text-align:center;padding:0 8px;">Backend connect hone ke baad real QR aayega</div>
+        </div>
+        <div class="qr-shop-id" id="qrShopId">SHOP001</div>
+        <div style="font-size:13px;opacity:0.6;margin-top:4px;" id="qrShopNameDisplay">Mahato Net Cafe</div>
+        <div class="qr-actions">
+          <button class="qr-btn" onclick="downloadQRCode()">⬇ QR Download</button>
+          <button class="qr-btn" onclick="showPanel('downloads')">📥 All Downloads</button>
+        </div>
+      </div>
+
+      <!-- QUICK STATUS -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⚙️ Current Settings</div>
+            <div class="card-sub">Aapki abhi ki settings</div>
+          </div>
+        </div>
+        <div id="quickStatus"></div>
+      </div>
+
+      <!-- ADMIN INSTRUCTIONS -->
+      <div class="instr-box" id="instrBoxDash">
+        <div class="instr-title">📋 Admin Instructions</div>
+        <div id="instrContent">
+          <div class="instr-item"><div class="instr-num">1</div><div>Dashboard regularly check karte raho naye updates ke liye.</div></div>
+          <div class="instr-item"><div class="instr-num">2</div><div>Print Agent .exe install karna na bhulen — auto-print ke liye zaroori hai.</div></div>
+          <div class="instr-item"><div class="instr-num">3</div><div>Koi problem ho toh Super Admin se contact karo.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DOWNLOADS ===== -->
+    <div class="panel" id="panel-downloads">
+      <div class="dl-grid">
+        <div class="dl-card primary" onclick="downloadQRCode()">
+          <div class="dl-icon">📱</div>
+          <div class="dl-name">QR Code</div>
+          <div class="dl-note">Shop ID ke saath<br/>Print karke lagao counter par</div>
+          <div class="dl-btn-label">⬇ Download PNG</div>
+        </div>
+        <div class="dl-card" id="exeDownloadCard" onclick="downloadExe()">
+          <div class="dl-icon">💻</div>
+          <div class="dl-name">Print Agent .exe</div>
+          <div class="dl-note">PC mein ek baar install karo<br/>Auto-print ke liye zaroori</div>
+          <div class="dl-btn-label" style="background:var(--green);">⬇ Download .exe</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px;">📥 Important Software Links</div>
+        <div class="imp-links">
+          <a href="https://www.python.org/downloads/" target="_blank" class="imp-link">
+            <span class="il-icon">🐍</span>
+            <div><div class="il-text">Python (Official Download)</div><div style="font-size:12px;color:var(--muted);">Print Agent ke liye zaroori</div></div>
+            <span class="il-arrow">↗</span>
+          </a>
+          <a href="https://www.sumatrapdfreader.org/download-free-pdf-viewer" target="_blank" class="imp-link">
+            <span class="il-icon">📄</span>
+            <div><div class="il-text">SumatraPDF (Free PDF Reader)</div><div style="font-size:12px;color:var(--muted);">PDF print ke liye</div></div>
+            <span class="il-arrow">↗</span>
+          </a>
+          <a href="https://github.com" target="_blank" class="imp-link" id="exeLinkDash">
+            <span class="il-icon">💾</span>
+            <div><div class="il-text">Print Agent .exe (Direct Link)</div><div style="font-size:12px;color:var(--muted);" id="exeLinkSub">Super Admin se link milega</div></div>
+            <span class="il-arrow">↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- SETUP INSTRUCTIONS -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px;">🛠️ Print Agent Setup Guide</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;gap:12px;padding:10px;background:var(--bg);border-radius:10px;">
+            <div style="background:var(--blue);color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">1</div>
+            <div style="font-size:14px;color:var(--ink);">Upar se <strong>.exe file download</strong> karo</div>
+          </div>
+          <div style="display:flex;gap:12px;padding:10px;background:var(--bg);border-radius:10px;">
+            <div style="background:var(--blue);color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">2</div>
+            <div style="font-size:14px;color:var(--ink);">Double click karke install karo — <strong>Antivirus allow</strong> karna padega</div>
+          </div>
+          <div style="display:flex;gap:12px;padding:10px;background:var(--bg);border-radius:10px;">
+            <div style="background:var(--blue);color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">3</div>
+            <div style="font-size:14px;color:var(--ink);">Pehli baar open karne par <strong>Shop ID enter</strong> karo: <span id="setupShopId" style="font-weight:800;color:var(--blue);">SHOP001</span></div>
+          </div>
+          <div style="display:flex;gap:12px;padding:10px;background:var(--bg);border-radius:10px;">
+            <div style="background:var(--green);color:white;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">✓</div>
+            <div style="font-size:14px;color:var(--ink);">Done! Ab System Tray mein icon dikhega — <strong>auto-start on/off</strong> wahan se</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PRICING ===== -->
+    <div class="panel" id="panel-pricing">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">💰 Print Pricing Update Karo</div>
+            <div class="card-sub">Price change hote hi purane QR par bhi apply ho jayega</div>
+          </div>
+        </div>
+        <div class="price-grid">
+          <div class="price-input-card">
+            <div class="pic-copies">4</div>
+            <div class="pic-label">Copies</div>
+            <div class="form-group" style="margin:0;">
+              <div style="display:flex;align-items:center;background:white;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;">
+                <span style="padding:10px 12px;font-size:18px;font-weight:800;color:var(--green);">₹</span>
+                <input type="number" id="price4" value="20" min="5" max="500" style="border:none;padding:10px 8px;font-size:20px;font-weight:800;width:100%;outline:none;"/>
+              </div>
+            </div>
+          </div>
+          <div class="price-input-card">
+            <div class="pic-copies">6</div>
+            <div class="pic-label">Copies</div>
+            <div class="form-group" style="margin:0;">
+              <div style="display:flex;align-items:center;background:white;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;">
+                <span style="padding:10px 12px;font-size:18px;font-weight:800;color:var(--green);">₹</span>
+                <input type="number" id="price6" value="30" min="5" max="500" style="border:none;padding:10px 8px;font-size:20px;font-weight:800;width:100%;outline:none;"/>
+              </div>
+            </div>
+          </div>
+          <div class="price-input-card">
+            <div class="pic-copies">10</div>
+            <div class="pic-label">Copies</div>
+            <div class="form-group" style="margin:0;">
+              <div style="display:flex;align-items:center;background:white;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;">
+                <span style="padding:10px 12px;font-size:18px;font-weight:800;color:var(--green);">₹</span>
+                <input type="number" id="price10" value="40" min="5" max="500" style="border:none;padding:10px 8px;font-size:20px;font-weight:800;width:100%;outline:none;"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#92400e;">
+          ⚠️ Price change karne ke baad <strong>Save karo</strong> — automatically sabhi customers ke liye update ho jayega.
+        </div>
+        <button class="btn btn-success btn-block" onclick="savePricing()">💾 Pricing Save Karo</button>
+      </div>
+    </div>
+
+    <!-- ===== PAYMENT MODE ===== -->
+    <div class="panel" id="panel-payment">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">💳 Payment Mode</div>
+            <div class="card-sub">Customer kaise payment karega — aap decide karo</div>
+          </div>
+        </div>
+        <div class="toggle-group">
+          <div class="toggle-item selected" id="pm-counter" onclick="selectPayMode('counter')">
+            <div class="ti-left">
+              <span class="ti-icon">💵</span>
+              <div><div class="ti-title">Counter Payment</div><div class="ti-sub">Customer cash dega aapko — aap approve karoge</div></div>
+            </div>
+            <div class="ti-check">✓</div>
+          </div>
+          <div class="toggle-item" id="pm-online" onclick="selectPayMode('online')">
+            <div class="ti-left">
+              <span class="ti-icon">📱</span>
+              <div><div class="ti-title">Online Payment Only</div><div class="ti-sub">UPI / Razorpay — automatic payment verify hoga</div></div>
+            </div>
+            <div class="ti-check"></div>
+          </div>
+          <div class="toggle-item" id="pm-both" onclick="selectPayMode('both')">
+            <div class="ti-left">
+              <span class="ti-icon">🔄</span>
+              <div><div class="ti-title">Both (Counter + Online)</div><div class="ti-sub">Customer apni marzi se choose karega</div></div>
+            </div>
+            <div class="ti-check"></div>
+          </div>
+        </div>
+        <button class="btn btn-success btn-block" style="margin-top:20px;" onclick="savePayMode()">💾 Payment Mode Save Karo</button>
+      </div>
+    </div>
+
+    <!-- ===== PAYMENT GATEWAY ===== -->
+    <div class="panel" id="panel-gateway">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔑 Payment Gateway Setup</div>
+            <div class="card-sub">Apna API key daalo — online payment ke liye zaroori</div>
+          </div>
+        </div>
+
+        <!-- RAZORPAY -->
+        <div class="api-card">
+          <div class="ac-header">
+            <span class="ac-icon">💙</span>
+            <div><div class="ac-title">Razorpay</div><div class="ac-sub">Most popular — UPI, Card, Net Banking</div></div>
+          </div>
+          <div class="form-group">
+            <label>Key ID</label>
+            <div class="key-input-wrap">
+              <input type="password" id="rzpKeyId" placeholder="rzp_live_xxxxxxxxxxxxx"/>
+              <button class="key-toggle" onclick="toggleKey('rzpKeyId')">👁</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Key Secret</label>
+            <div class="key-input-wrap">
+              <input type="password" id="rzpSecret" placeholder="Your secret key"/>
+              <button class="key-toggle" onclick="toggleKey('rzpSecret')">👁</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PHONEPE -->
+        <div class="api-card">
+          <div class="ac-header">
+            <span class="ac-icon">💜</span>
+            <div><div class="ac-title">PhonePe</div><div class="ac-sub">PhonePe Business API</div></div>
+          </div>
+          <div class="form-group">
+            <label>Merchant ID</label>
+            <div class="key-input-wrap">
+              <input type="password" id="ppeMerchantId" placeholder="PGTESTPAYUAT"/>
+              <button class="key-toggle" onclick="toggleKey('ppeMerchantId')">👁</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Salt Key</label>
+            <div class="key-input-wrap">
+              <input type="password" id="ppeSaltKey" placeholder="Your salt key"/>
+              <button class="key-toggle" onclick="toggleKey('ppeSaltKey')">👁</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#166534;">
+          🔒 Aapki API keys securely save hoti hain. Inhe kabhi kisi ke saath share mat karo.
+        </div>
+        <button class="btn btn-success btn-block" onclick="saveGateway()">💾 Gateway Save Karo</button>
+      </div>
+    </div>
+
+    <!-- ===== PRINTER ===== -->
+    <div class="panel" id="panel-printer">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🖨️ Printer Select Karo</div>
+            <div class="card-sub">Print Agent jo printer use karega</div>
+          </div>
+        </div>
+        <div class="printer-list" id="printerList">
+          <div class="printer-item selected" data-printer="auto" onclick="selectPrinter(this)">
+            <span class="pi-icon">🔍</span>
+            <div><div class="pi-name">Auto Detect</div><div class="pi-badge">Recommended — PC ka default printer</div></div>
+            <div class="pi-check">✓</div>
+          </div>
+          <div class="printer-item" data-printer="hp-m1005" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">HP LaserJet M1005</div><div class="pi-badge">HP — Laser</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="brother-520w" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Brother DCP-L2520W</div><div class="pi-badge">Brother — Laser/WiFi</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="kyocera-2040" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Kyocera FS-2040DN</div><div class="pi-badge">Kyocera — Laser</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="epson-l130" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Epson L130</div><div class="pi-badge">Epson — Inkjet</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="epson-l8050" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Epson L8050</div><div class="pi-badge">Epson — Photo Inkjet</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="epson-l18050" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Epson L18050</div><div class="pi-badge">Epson — Wide Format</div></div>
+            <div class="pi-check"></div>
+          </div>
+          <div class="printer-item" data-printer="canon-g2010" onclick="selectPrinter(this)">
+            <span class="pi-icon">🖨️</span>
+            <div><div class="pi-name">Canon PIXMA G2010</div><div class="pi-badge">Canon — Inkjet</div></div>
+            <div class="pi-check"></div>
+          </div>
+        </div>
+        <button class="btn btn-success btn-block" style="margin-top:16px;" onclick="savePrinter()">💾 Printer Save Karo</button>
+      </div>
+    </div>
+
+    <!-- ===== SHOP DETAILS ===== -->
+    <div class="panel" id="panel-shop-details">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:18px;">🏪 Shop Details Update Karo</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Owner ka Naam</label>
+            <input type="text" id="editOwnerName" placeholder="Rupesh Kumar Mahato"/>
+          </div>
+          <div class="form-group">
+            <label>Mobile Number</label>
+            <input type="tel" id="editMobile" placeholder="9876543210" maxlength="10"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Shop / Cafe ka Naam</label>
+          <input type="text" id="editShopName" placeholder="Mahato Net Cafe"/>
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <textarea id="editAddress" rows="2" placeholder="Baliapur, Dhanbad, Jharkhand"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>City</label>
+            <input type="text" id="editCity" placeholder="Dhanbad"/>
+          </div>
+          <div class="form-group">
+            <label>State</label>
+            <select id="editState">
+              <option>Jharkhand</option><option>Bihar</option><option>West Bengal</option>
+              <option>Uttar Pradesh</option><option>Delhi</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="editEmail" placeholder="rupesh@example.com"/>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#92400e;">
+          ⚠️ Shop ID aur Password change karne ka option nahi hai security ke liye.
+        </div>
+        <button class="btn btn-success btn-block" onclick="saveShopDetails()">💾 Details Save Karo</button>
+      </div>
+    </div>
+
+    <!-- ===== INSTRUCTIONS ===== -->
+    <div class="panel" id="panel-instructions">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:6px;">📋 Admin Instructions</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Super Admin dwara bheje gaye important instructions</div>
+        <div class="instr-box">
+          <div class="instr-title">📌 Latest Instructions</div>
+          <div id="instrFullContent">
+            <div class="instr-item"><div class="instr-num">1</div><div>Dashboard regularly check karte raho naye updates ke liye.</div></div>
+            <div class="instr-item"><div class="instr-num">2</div><div>Print Agent .exe install karna na bhulen — auto-print ke liye zaroori hai.</div></div>
+            <div class="instr-item"><div class="instr-num">3</div><div>Koi problem ho toh Super Admin se contact karo.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- QR CANVAS -->
+<canvas id="qrCanvas" style="display:none;"></canvas>
+
+<script>
+// ===== INIT =====
+let shopData = {
+  shopId:'SHOP001', shopName:'Mahato Net Cafe', ownerName:'Shop Owner',
+  mobile:'', city:'', state:'', address:'', email:'',
+  pricing:{copies4:20,copies6:30,copies10:40},
+  paymentMode:'counter', printer:'auto',
+  loginTime: Date.now()
+};
+
+// Load session
+(function init(){
+  const session = JSON.parse(localStorage.getItem('shopOwnerSession') || 'null');
+  if(!session){ window.location.href='homepage.html'; return; }
+  const owners = JSON.parse(localStorage.getItem('shopOwners') || '[]');
+  const found = owners.find(o => o.shopId === session.shopId);
+  if(found){
+    shopData = {...shopData, ...found};
+    shopData.loginTime = session.loginTime;
+  }
+  renderAll();
+  startSessionTimer();
+})();
+
+function renderAll(){
+  // Sidebar
+  document.getElementById('sideShopName').textContent = shopData.shopName || 'My Shop';
+  document.getElementById('sideShopId').textContent = 'ID: '+shopData.shopId;
+  document.getElementById('qrShopId').textContent = shopData.shopId;
+  document.getElementById('qrShopNameDisplay').textContent = shopData.shopName;
+  document.getElementById('setupShopId').textContent = shopData.shopId;
+  // Shop details form
+  document.getElementById('editOwnerName').value = shopData.ownerName||'';
+  document.getElementById('editMobile').value = shopData.mobile||'';
+  document.getElementById('editShopName').value = shopData.shopName||'';
+  document.getElementById('editAddress').value = shopData.address||'';
+  document.getElementById('editCity').value = shopData.city||'';
+  document.getElementById('editEmail').value = shopData.email||'';
+  // Pricing
+  const p = shopData.pricing || {};
+  document.getElementById('price4').value = p.copies4||20;
+  document.getElementById('price6').value = p.copies6||30;
+  document.getElementById('price10').value = p.copies10||40;
+  // Quick status
+  renderQuickStatus();
+  // Load admin instructions from localStorage (super admin sets these)
+  loadInstructions();
+}
+
+function renderQuickStatus(){
+  const p = shopData.pricing||{};
+  const pm = shopData.paymentMode||'counter';
+  const pr = shopData.printer||'auto';
+  document.getElementById('quickStatus').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px;">
+        <span style="color:var(--muted);">💰 Pricing</span>
+        <span style="font-weight:700;">₹${p.copies4||20} / ₹${p.copies6||30} / ₹${p.copies10||40}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px;">
+        <span style="color:var(--muted);">💳 Payment Mode</span>
+        <span style="font-weight:700;">${pm==='counter'?'Counter Cash':pm==='online'?'Online Only':'Counter + Online'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:14px;">
+        <span style="color:var(--muted);">🖨️ Printer</span>
+        <span style="font-weight:700;">${pr==='auto'?'Auto Detect':pr}</span>
+      </div>
+    </div>`;
+}
+
+// ===== SESSION TIMER =====
+function startSessionTimer(){
+  const elapsed = Date.now() - shopData.loginTime;
+  const total = 24*60*60*1000;
+  const remaining = Math.max(0, total - elapsed);
+  let secs = Math.floor(remaining/1000);
+  const el = document.getElementById('sessionTimer');
+  function tick(){
+    const h = String(Math.floor(secs/3600)).padStart(2,'0');
+    const m = String(Math.floor((secs%3600)/60)).padStart(2,'0');
+    const s = String(secs%60).padStart(2,'0');
+    el.textContent = `${h}:${m}:${s}`;
+    if(secs <= 0){ doLogout(); return; }
+    secs--;
+    setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+// ===== PANEL NAV =====
+const panelTitles = {
+  'dashboard':'📊 Dashboard','downloads':'⬇️ Downloads',
+  'pricing':'💰 Print Pricing','payment':'💳 Payment Mode',
+  'gateway':'🔑 Payment Gateway','printer':'🖨️ Printer Select',
+  'shop-details':'🏪 Shop Details','instructions':'📋 Instructions'
+};
+function showPanel(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  document.querySelector(`.nav-item[onclick="showPanel('${id}')"]`)?.classList.add('active');
+  const title = panelTitles[id]||'Dashboard';
+  document.getElementById('topbarTitle').textContent = title;
+  document.getElementById('mobileTitle').textContent = title.replace(/^[^\s]+\s/,'');
+  closeSidebar();
+  window.scrollTo(0,0);
+}
+
+// ===== SAVE FUNCTIONS =====
+function savePricing(){
+  const p4 = parseInt(document.getElementById('price4').value)||20;
+  const p6 = parseInt(document.getElementById('price6').value)||30;
+  const p10 = parseInt(document.getElementById('price10').value)||40;
+  shopData.pricing = {copies4:p4,copies6:p6,copies10:p10};
+  saveToStorage();
+  renderQuickStatus();
+  showToast('✅ Pricing save ho gayi! QR par bhi apply ho gaya.');
+}
+
+let selectedPayMode = 'counter';
+function selectPayMode(mode){
+  selectedPayMode = mode;
+  ['counter','online','both'].forEach(m=>{
+    const el = document.getElementById('pm-'+m);
+    el.classList.toggle('selected', m===mode);
+    el.querySelector('.ti-check').textContent = m===mode?'✓':'';
+  });
+}
+function savePayMode(){
+  shopData.paymentMode = selectedPayMode;
+  saveToStorage(); renderQuickStatus();
+  showToast('✅ Payment mode save ho gaya!');
+}
+
+function saveGateway(){
+  const rzpKey = document.getElementById('rzpKeyId').value;
+  const rzpSec = document.getElementById('rzpSecret').value;
+  if(rzpKey && !rzpKey.startsWith('rzp_')){ showToast('⚠️ Razorpay Key ID "rzp_" se shuru hona chahiye'); return; }
+  shopData.gatewayKeys = { razorpay:{keyId:rzpKey,secret:rzpSec} };
+  saveToStorage();
+  showToast('✅ Gateway keys save ho gayi!');
+}
+
+let selectedPrinter = 'auto';
+function selectPrinter(el){
+  document.querySelectorAll('.printer-item').forEach(p=>{
+    p.classList.remove('selected');
+    p.querySelector('.pi-check').textContent='';
+  });
+  el.classList.add('selected');
+  el.querySelector('.pi-check').textContent='✓';
+  selectedPrinter = el.dataset.printer;
+}
+function savePrinter(){
+  shopData.printer = selectedPrinter;
+  saveToStorage(); renderQuickStatus();
+  showToast('✅ Printer save ho gaya!');
+}
+
+function saveShopDetails(){
+  const name = document.getElementById('editShopName').value.trim();
+  const owner = document.getElementById('editOwnerName').value.trim();
+  const mobile = document.getElementById('editMobile').value.trim();
+  if(!name||!owner||!mobile){ showToast('⚠️ Naam, Shop Name aur Mobile zaroori hain'); return; }
+  if(!/^\d{10}$/.test(mobile)){ showToast('⚠️ Valid 10-digit mobile number dalo'); return; }
+  shopData.shopName = name;
+  shopData.ownerName = owner;
+  shopData.mobile = mobile;
+  shopData.address = document.getElementById('editAddress').value.trim();
+  shopData.city = document.getElementById('editCity').value.trim();
+  shopData.state = document.getElementById('editState').value;
+  shopData.email = document.getElementById('editEmail').value.trim();
+  saveToStorage(); renderAll();
+  showToast('✅ Shop details save ho gayi!');
+}
+
+function saveToStorage(){
+  const owners = JSON.parse(localStorage.getItem('shopOwners') || '[]');
+  const idx = owners.findIndex(o=>o.shopId===shopData.shopId);
+  if(idx>=0) owners[idx]={...owners[idx],...shopData};
+  else owners.push(shopData);
+  localStorage.setItem('shopOwners', JSON.stringify(owners));
+}
+
+// ===== INSTRUCTIONS =====
+function loadInstructions(){
+  const instrs = JSON.parse(localStorage.getItem('adminInstructions') || '[]');
+  if(instrs.length===0){
+    document.getElementById('instrBadge').style.display='none'; return;
+  }
+  document.getElementById('instrBadge').style.display='block';
+  const html = instrs.map((ins,i)=>`<div class="instr-item"><div class="instr-num">${i+1}</div><div>${ins}</div></div>`).join('');
+  document.getElementById('instrContent').innerHTML = html;
+  document.getElementById('instrFullContent').innerHTML = html;
+}
+
+// ===== KEY TOGGLE =====
+function toggleKey(id){
+  const inp = document.getElementById(id);
+  inp.type = inp.type==='password'?'text':'password';
+}
+
+// ===== QR DOWNLOAD =====
+function downloadQRCode(){
+  const canvas = document.getElementById('qrCanvas');
+  canvas.width=420; canvas.height=520;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,420,520);
+  ctx.fillStyle='#1a56db'; ctx.fillRect(0,0,420,80);
+  ctx.fillStyle='white';
+  ctx.font='bold 18px Segoe UI,sans-serif'; ctx.textAlign='center';
+  ctx.fillText('📸 QR se Passport Photo Nikalo',210,32);
+  ctx.font='13px Segoe UI,sans-serif';
+  ctx.fillText(shopData.shopName+' | '+shopData.shopId,210,58);
+  ctx.fillStyle='#f0f4ff'; ctx.fillRect(90,100,240,240);
+  ctx.fillStyle='#1a56db';
+  ctx.font='bold 15px Segoe UI'; ctx.fillText('QR CODE',210,215);
+  ctx.font='12px Segoe UI'; ctx.fillStyle='#64748b';
+  ctx.fillText('(Backend se real QR',210,240); ctx.fillText('aayega — Phase 5)',210,260);
+  ctx.strokeStyle='#1a56db'; ctx.lineWidth=3; ctx.strokeRect(90,100,240,240);
+  ctx.fillStyle='#0f172a'; ctx.fillRect(0,390,420,130);
+  ctx.fillStyle='white'; ctx.font='bold 15px Segoe UI';
+  ctx.fillText('Scan karo → Photo lo → Print karo!',210,420);
+  ctx.font='13px Segoe UI'; ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fillText('4 copies ₹'+shopData.pricing.copies4+' | 6 copies ₹'+shopData.pricing.copies6+' | 10 copies ₹'+shopData.pricing.copies10,210,448);
+  ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='11px Segoe UI';
+  ctx.fillText('Shop ID: '+shopData.shopId,210,480);
+  const a=document.createElement('a');
+  a.href=canvas.toDataURL('image/png');
+  a.download='QR_'+shopData.shopId+'.png';
+  a.click();
+  showToast('✅ QR Code download ho raha hai!');
+}
+
+function downloadExe(){
+  const exeLink = localStorage.getItem('exeDownloadLink');
+  if(exeLink && exeLink !== '#'){
+    window.open(exeLink,'_blank');
+  } else {
+    showToast('⚠️ .exe link Super Admin se milega. Thoda wait karo.');
+  }
+}
+
+// ===== LOGOUT =====
+function doLogout(){
+  localStorage.removeItem('shopOwnerSession');
+  window.location.href='homepage.html';
+}
+
+// ===== MOBILE SIDEBAR =====
+function openSidebar(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
+// ===== TOAST =====
+function showToast(msg,dur=3000){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+</script>
+</body>
+</html>
