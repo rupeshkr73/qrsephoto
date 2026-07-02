@@ -732,10 +732,37 @@ function handleFileUpload(e) {
   const file = e.target.files[0];
   if(!file) return;
   if(!file.type.startsWith('image/')) { showToast('Sirf image file upload karo!'); return; }
-  state.sourceMethod = 'upload';
-  state.originalImage = URL.createObjectURL(file);
-  document.getElementById('previewImg').src = state.originalImage;
-  showScreen(2);
+
+  const isCamera = e.target.id === 'cameraInput';
+  state.sourceMethod = isCamera ? 'camera' : 'upload';
+
+  // Image load hone ka wait karo phir screen change karo
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    state.originalImage = ev.target.result;
+    const previewImg = document.getElementById('previewImg');
+    previewImg.onload = function() {
+      showScreen(2);
+    };
+    previewImg.onerror = function() {
+      // onerror pe bhi try karo
+      showScreen(2);
+    };
+    previewImg.src = state.originalImage;
+    // Fallback — agar onload trigger na ho 2 sec mein
+    setTimeout(() => {
+      if(state.currentScreen === 1 || state.currentScreen === '1b') {
+        showScreen(2);
+      }
+    }, 2000);
+  };
+  reader.onerror = function() {
+    showToast('File read karne mein error aaya — dobara try karo');
+  };
+  reader.readAsDataURL(file);
+
+  // Input reset karo taaki same file dobara select ho sake
+  e.target.value = '';
 }
 
 // ============ CAMERA (Desktop) ============
@@ -767,15 +794,16 @@ function capturePhoto() {
   stopCamera();
   state.sourceMethod = 'camera';
   state.originalImage = canvas.toDataURL('image/jpeg', 0.95);
-  document.getElementById('previewImg').src = state.originalImage;
-  showScreen(2);
+  const previewImg = document.getElementById('previewImg');
+  previewImg.onload = function() { showScreen(2); };
+  previewImg.onerror = function() { showScreen(2); };
+  previewImg.src = state.originalImage;
+  setTimeout(() => {
+    if(state.currentScreen === '1b') showScreen(2);
+  }, 1500);
 }
 
 // Mobile camera input
-document.getElementById('cameraInput').addEventListener('change', function(e) {
-  handleFileUpload(e);
-  state.sourceMethod = 'camera';
-});
 
 // ============ STEP 2: BG REMOVE ============
 function skipBGRemove() {
