@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>QR se Passport Photo Nikalo</title>
+<style>
+  :root {
+    --primary: #1a56db;
+    --primary-dark: #1e429f;
+    --accent: #16a34a;
+    --danger: #dc2626;
+    --bg: #f0f4ff;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --shadow: 0 4px 24px rgba(26,86,219,0.10);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 32px;
+  }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 16px 20px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(26,86,219,0.25);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-title { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+  .header-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+  .back-btn {
+    background: rgba(255,255,255,0.18);
+    border: none; color: white;
+    padding: 8px 14px; border-radius: 8px;
+    font-size: 14px; cursor: pointer;
+    display: none; align-items: center; gap: 6px;
+    transition: background 0.2s;
+  }
+  .back-btn:hover { background: rgba(255,255,255,0.28); }
+  .back-btn.visible { display: flex; }
+
+  /* STEP INDICATOR */
+  .steps-bar {
+    background: white;
+    padding: 12px 20px;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  .steps-bar::-webkit-scrollbar { display: none; }
+  .step-dot {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px; min-width: 52px; cursor: default;
+  }
+  .step-circle {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--border); color: var(--muted);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s;
+  }
+  .step-dot.active .step-circle { background: var(--primary); color: white; }
+  .step-dot.done .step-circle { background: var(--accent); color: white; }
+  .step-label { font-size: 10px; color: var(--muted); text-align: center; white-space: nowrap; }
+  .step-dot.active .step-label { color: var(--primary); font-weight: 600; }
+  .step-dot.done .step-label { color: var(--accent); }
+  .step-line { flex: 1; height: 2px; background: var(--border); margin-top: 13px; min-width: 10px; border-radius: 2px; }
+  .step-line.done { background: var(--accent); }
+
+  /* SCREENS */
+  .screen { display: none; padding: 20px 16px; animation: fadeIn 0.3s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 18px; font-weight: 700; color: var(--text);
+    margin-bottom: 6px;
+  }
+  .card-sub { font-size: 14px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+
+  /* OPTION BUTTONS (Step 1 — Upload vs Camera) */
+  .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+  .option-card {
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .option-card:hover, .option-card:active { border-color: var(--primary); background: #eef2ff; }
+  .option-icon { font-size: 40px; }
+  .option-label { font-size: 15px; font-weight: 700; color: var(--text); }
+  .option-hint { font-size: 12px; color: var(--muted); }
+
+  /* UPLOAD AREA */
+  .upload-area {
+    border: 2.5px dashed var(--primary);
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    background: #eef2ff;
+    transition: all 0.2s;
+  }
+  .upload-area:hover { background: #e0e7ff; }
+  .upload-area .upload-icon { font-size: 48px; margin-bottom: 10px; }
+  .upload-area p { color: var(--primary); font-weight: 600; font-size: 15px; }
+  .upload-area small { color: var(--muted); font-size: 12px; }
+  #fileInput, #cameraInput { display: none; }
+
+  /* CAMERA */
+  #cameraContainer {
+    position: relative;
+    background: #000;
+    border-radius: 14px;
+    overflow: hidden;
+    aspect-ratio: 3/4;
+    max-height: 420px;
+  }
+  #videoEl {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .face-guide {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -52%);
+    width: 55%; aspect-ratio: 3/4;
+    border: 2.5px solid rgba(255,255,255,0.7);
+    border-radius: 50% 50% 45% 45%;
+    pointer-events: none;
+  }
+  .camera-hint {
+    position: absolute; bottom: 12px; left: 0; right: 0;
+    text-align: center; color: white; font-size: 12px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  }
+  .capture-btn {
+    width: 70px; height: 70px; border-radius: 50%;
+    background: white; border: 4px solid var(--primary);
+    margin: 16px auto 0; display: block;
+    cursor: pointer; font-size: 28px;
+    box-shadow: 0 4px 16px rgba(26,86,219,0.3);
+    transition: transform 0.1s;
+  }
+  .capture-btn:active { transform: scale(0.93); }
+
+  /* PREVIEW */
+  .preview-wrap {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  #previewImg, #processedImg {
+    max-width: 100%;
+    max-height: 360px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 12px;
+  }
+
+  /* BG REMOVE OPTIONS */
+  .bg-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .bg-choice-btn {
+    padding: 16px 10px;
+    border-radius: 12px;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px; font-weight: 600;
+    transition: all 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .bg-choice-btn:hover { border-color: var(--primary); background: #eef2ff; }
+  .bg-choice-btn .bc-icon { font-size: 30px; }
+
+  /* BG COLOR PICKER */
+  .bg-colors { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .bg-swatch {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer; transition: all 0.2s;
+    position: relative;
+  }
+  .bg-swatch.selected { border-color: var(--primary); transform: scale(1.15); box-shadow: 0 0 0 2px white, 0 0 0 4px var(--primary); }
+  .custom-color-wrap { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .custom-color-wrap label { font-size: 14px; color: var(--muted); }
+  #customColorInput { width: 48px; height: 48px; border: none; border-radius: 50%; cursor: pointer; padding: 0; background: none; }
+
+  /* PROCESSING OVERLAY */
+  .processing-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.72);
+    display: none; align-items: center; justify-content: center;
+    z-index: 999; flex-direction: column; gap: 16px;
+  }
+  .processing-overlay.show { display: flex; }
+  .spinner {
+    width: 52px; height: 52px;
+    border: 5px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing-text { color: white; font-size: 16px; font-weight: 600; }
+  .processing-sub { color: rgba(255,255,255,0.7); font-size: 13px; }
+
+  /* CROP */
+  #cropContainer {
+    position: relative;
+    overflow: hidden;
+    background: #1e293b;
+    border-radius: 12px;
+    user-select: none;
+    margin-bottom: 12px;
+  }
+  #cropImg { display: block; width: 100%; pointer-events: none; }
+  #cropBox {
+    position: absolute;
+    border: 2px solid var(--primary);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+    cursor: move;
+    touch-action: none;
+  }
+  .crop-handle {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: white; border: 2px solid var(--primary);
+    border-radius: 3px;
+  }
+  .ch-tl { top: -7px; left: -7px; cursor: nw-resize; }
+  .ch-tr { top: -7px; right: -7px; cursor: ne-resize; }
+  .ch-bl { bottom: -7px; left: -7px; cursor: sw-resize; }
+  .ch-br { bottom: -7px; right: -7px; cursor: se-resize; }
+  .crop-hint { text-align: center; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+
+  /* SLIDERS */
+  .slider-row { margin-bottom: 14px; }
+  .slider-row label { font-size: 13px; font-weight: 600; color: var(--text); display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .slider-row input[type=range] { width: 100%; accent-color: var(--primary); }
+
+  /* COPIES */
+  .copy-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .copy-card {
+    border: 2.5px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+  }
+  .copy-card:hover { border-color: var(--primary); }
+  .copy-card.selected { border-color: var(--primary); background: #eef2ff; }
+  .copy-card .cc-count { font-size: 28px; font-weight: 800; color: var(--primary); }
+  .copy-card .cc-label { font-size: 12px; color: var(--muted); margin: 2px 0; }
+  .copy-card .cc-price { font-size: 20px; font-weight: 700; color: var(--accent); }
+
+  /* PAYMENT */
+  .payment-summary {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 1px solid #bae6fd;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .ps-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .ps-row:last-child { border-top: 1px solid #bae6fd; margin-top: 8px; padding-top: 14px; }
+  .ps-label { font-size: 14px; color: var(--muted); }
+  .ps-value { font-size: 14px; font-weight: 600; color: var(--text); }
+  .ps-total { font-size: 22px; font-weight: 800; color: var(--primary); }
+  .payment-methods { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .pay-method {
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: all 0.2s;
+    background: var(--bg);
+  }
+  .pay-method.selected { border-color: var(--primary); background: #eef2ff; }
+  .pay-method .pm-icon { font-size: 24px; }
+  .pay-method .pm-text { font-size: 15px; font-weight: 600; }
+  .pay-method .pm-sub { font-size: 12px; color: var(--muted); }
+
+  /* PRINT PREVIEW */
+  #printCanvas {
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    max-width: 100%;
+    display: block;
+    margin: 0 auto 16px;
+    background: white;
+  }
+
+  /* SUCCESS */
+  .success-box {
+    text-align: center;
+    padding: 32px 20px;
+  }
+  .success-icon { font-size: 72px; margin-bottom: 16px; }
+  .success-title { font-size: 24px; font-weight: 800; color: var(--accent); margin-bottom: 8px; }
+  .success-sub { font-size: 15px; color: var(--muted); line-height: 1.6; }
+
+  /* BUTTONS */
+  .btn {
+    display: block; width: 100%;
+    padding: 16px;
+    border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-success { background: var(--accent); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-outline {
+    background: white; color: var(--primary);
+    border: 2px solid var(--primary);
+  }
+  .btn-outline:hover { background: #eef2ff; }
+  .btn + .btn { margin-top: 10px; }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    padding: 20px 16px 8px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .ig-link { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+  .ig-link:hover { color: #e1306c; }
+  .ig-link svg { width: 22px; height: 22px; display: block; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: white;
+    padding: 12px 20px; border-radius: 10px;
+    font-size: 14px; font-weight: 500;
+    opacity: 0; transition: opacity 0.3s;
+    z-index: 9999; white-space: nowrap;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* PRINT ONLY */
+  @media print {
+    body > *:not(#printOnlyArea) { display: none !important; }
+    #printOnlyArea { display: block !important; }
+    @page { margin: 0; size: 4in 6in; }
+  }
+  #printOnlyArea { display: none; }
+</style>
+</head>
+<body>
+
+<!-- PROCESSING OVERLAY -->
+<div class="processing-overlay" id="processingOverlay">
+  <div class="spinner"></div>
+  <div class="processing-text" id="processingText">AI BG Remove ho raha hai...</div>
+  <div class="processing-sub">Browser mein ho raha hai — fast aur free ✓</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="header-title">📸 Passport Photo</div>
+    <div class="header-sub" id="headerSub">QR se Passport Photo Nikalo</div>
+  </div>
+  <button class="back-btn" id="backBtn" onclick="goBack()">← Wapas</button>
+</div>
+
+<!-- STEP BAR -->
+<div class="steps-bar" id="stepsBar">
+  <div class="step-dot active" id="sdot1"><div class="step-circle">1</div><div class="step-label">Photo</div></div>
+  <div class="step-line" id="sline1"></div>
+  <div class="step-dot" id="sdot2"><div class="step-circle">2</div><div class="step-label">BG</div></div>
+  <div class="step-line" id="sline2"></div>
+  <div class="step-dot" id="sdot3"><div class="step-circle">3</div><div class="step-label">Crop</div></div>
+  <div class="step-line" id="sline3"></div>
+  <div class="step-dot" id="sdot4"><div class="step-circle">4</div><div class="step-label">Copies</div></div>
+  <div class="step-line" id="sline4"></div>
+  <div class="step-dot" id="sdot5"><div class="step-circle">5</div><div class="step-label">Payment</div></div>
+  <div class="step-line" id="sline5"></div>
+  <div class="step-dot" id="sdot6"><div class="step-circle">✓</div><div class="step-label">Print</div></div>
+</div>
+
+<!-- ===== SCREEN 1: CHOOSE METHOD ===== -->
+<div class="screen active" id="screen1">
+  <div class="card">
+    <div class="card-title">📸 Photo kaise lena hai?</div>
+    <div class="card-sub">Gallery se upload karo ya sidha camera se photo lo</div>
+    <div class="option-grid">
+      <div class="option-card" onclick="chooseUpload()">
+        <div class="option-icon">🖼️</div>
+        <div class="option-label">Upload karo</div>
+        <div class="option-hint">Gallery / Files se</div>
+      </div>
+      <div class="option-card" onclick="chooseCamera()">
+        <div class="option-icon">📷</div>
+        <div class="option-label">Camera</div>
+        <div class="option-hint">Abhi click karo</div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)"/>
+    <input type="file" id="cameraInput" accept="image/*" capture="user" onchange="handleFileUpload(event)"/>
+  </div>
+
+  <!-- PRICING INFO -->
+  <div class="card">
+    <div class="card-title">💰 Pricing</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;">
+      <div style="text-align:center;background:#f0fdf4;border-radius:10px;padding:12px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#16a34a;">₹20</div>
+        <div style="font-size:13px;color:#64748b;">4 Copies</div>
+      </div>
+      <div style="text-align:center;background:#eff6ff;border-radius:10px;padding:12px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#1a56db;">₹30</div>
+        <div style="font-size:13px;color:#64748b;">6 Copies</div>
+      </div>
+      <div style="text-align:center;background:#fdf4ff;border-radius:10px;padding:12px 6px;">
+        <div style="font-size:22px;font-weight:800;color:#9333ea;">₹40</div>
+        <div style="font-size:13px;color:#64748b;">10 Copies</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN 1B: CAMERA ===== -->
+<div class="screen" id="screen1b">
+  <div class="card">
+    <div class="card-title">📷 Camera se Photo lo</div>
+    <div class="card-sub">Apna chehra oval mein rakhein aur photo lo</div>
+    <div id="cameraContainer">
+      <video id="videoEl" autoplay playsinline muted></video>
+      <div class="face-guide"></div>
+      <div class="camera-hint">Chehra oval ke andar rakhein</div>
+    </div>
+    <button class="capture-btn" onclick="capturePhoto()" title="Photo lo">📸</button>
+    <canvas id="captureCanvas" style="display:none;"></canvas>
+  </div>
+</div>
+
+<!-- ===== SCREEN 2: BG REMOVE OR SKIP ===== -->
+<div class="screen" id="screen2">
+  <div class="card">
+    <div class="card-title">🖼️ Photo Preview</div>
+    <div class="preview-wrap">
+      <img id="previewImg" src="" alt="Preview"/>
+    </div>
+    <div class="card-sub">Background ke sath kya karna hai?</div>
+    <div class="bg-choice-grid">
+      <div class="bg-choice-btn" onclick="skipBGRemove()">
+        <div class="bc-icon">✅</div>
+        <div>Theek hai, aage bado</div>
+        <div style="font-size:11px;color:#64748b;">BG as-is rakhna hai</div>
+      </div>
+      <div class="bg-choice-btn" onclick="startBGRemove()">
+        <div class="bc-icon">🤖</div>
+        <div>AI se BG Remove</div>
+        <div style="font-size:11px;color:#64748b;">Fast & local</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SCREEN 2B: BG COLOR SELECT ===== -->
+<div class="screen" id="screen2b">
+  <div class="card">
+    <div class="card-title">🎨 Background Colour Chuno</div>
+    <div class="preview-wrap">
+      <canvas id="bgPreviewCanvas" style="max-width:100%;border-radius:12px;display:block;margin:0 auto;"></canvas>
+    </div>
+    <div class="bg-colors">
+      <div class="bg-swatch selected" style="background:#ffffff;" data-color="#ffffff" onclick="selectBGColor(this)" title="White"></div>
+      <div class="bg-swatch" style="background:#1a5276;" data-color="#1a5276" onclick="selectBGColor(this)" title="Navy Blue"></div>
+      <div class="bg-swatch" style="background:#2874a6;" data-color="#2874a6" onclick="selectBGColor(this)" title="Blue"></div>
+      <div class="bg-swatch" style="background:#c0392b;" data-color="#c0392b" onclick="selectBGColor(this)" title="Red"></div>
+      <div class="bg-swatch" style="background:#27ae60;" data-color="#27ae60" onclick="selectBGColor(this)" title="Green"></div>
+      <div class="bg-swatch" style="background:#f5f5f5;" data-color="#f5f5f5" onclick="selectBGColor(this)" title="Off White"></div>
+    </div>
+    <div class="custom-color-wrap">
+      <label>Custom colour:</label>
+      <input type="color" id="customColorInput" value="#ffffff" oninput="applyCustomColor(this.value)"/>
+    </div>
+    <button class="btn btn-primary" style="margin-top:16px;" onclick="confirmBGColor()">Colour Confirm Karo ✓</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN 3: CROP ===== -->
+<div class="screen" id="screen3">
+  <div class="card">
+    <div class="card-title">✂️ Crop karo</div>
+    <div class="card-sub">Photo ko adjust karo — passport size ke liye chehra centre mein rakhein</div>
+    <div id="cropContainer">
+      <img id="cropImg" src="" alt="Crop"/>
+      <div id="cropBox">
+        <div class="crop-handle ch-tl" data-dir="tl"></div>
+        <div class="crop-handle ch-tr" data-dir="tr"></div>
+        <div class="crop-handle ch-bl" data-dir="bl"></div>
+        <div class="crop-handle ch-br" data-dir="br"></div>
+      </div>
+    </div>
+    <div class="crop-hint">📌 Blue box ko drag karke resize karein</div>
+
+    <!-- Brightness / Contrast -->
+    <div class="slider-row">
+      <label>☀️ Brightness <span id="brightnessVal">100%</span></label>
+      <input type="range" min="50" max="200" value="100" id="brightnessSlider" oninput="updateFilters()"/>
+    </div>
+    <div class="slider-row">
+      <label>🌑 Contrast <span id="contrastVal">100%</span></label>
+      <input type="range" min="50" max="200" value="100" id="contrastSlider" oninput="updateFilters()"/>
+    </div>
+
+    <button class="btn btn-primary" onclick="confirmCrop()">Crop Confirm Karo ✓</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN 4: COPIES ===== -->
+<div class="screen" id="screen4">
+  <div class="card">
+    <div class="card-title">🖨️ Kitni Copies chahiye?</div>
+    <div class="card-sub">4×6 inch sheet par auto-arrange hongi</div>
+    <div class="copy-options">
+      <div class="copy-card selected" id="cc4" onclick="selectCopies(4,20,'cc4')">
+        <div class="cc-count">4</div>
+        <div class="cc-label">Copies</div>
+        <div class="cc-price">₹20</div>
+      </div>
+      <div class="copy-card" id="cc6" onclick="selectCopies(6,30,'cc6')">
+        <div class="cc-count">6</div>
+        <div class="cc-label">Copies</div>
+        <div class="cc-price">₹30</div>
+      </div>
+      <div class="copy-card" id="cc10" onclick="selectCopies(10,40,'cc10')">
+        <div class="cc-count">10</div>
+        <div class="cc-label">Copies</div>
+        <div class="cc-price">₹40</div>
+      </div>
+    </div>
+    <div id="copyPreview" style="margin-top:16px;"></div>
+    <button class="btn btn-primary" style="margin-top:16px;" onclick="goToPayment()">Aage Bado →</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN 5: PAYMENT ===== -->
+<div class="screen" id="screen5">
+  <div class="card">
+    <div class="card-title">💳 Payment</div>
+    <div class="payment-summary">
+      <div class="ps-row"><span class="ps-label">Copies</span><span class="ps-value" id="psCopies">4 Copies</span></div>
+      <div class="ps-row"><span class="ps-label">Rate</span><span class="ps-value" id="psRate">₹20</span></div>
+      <div class="ps-row"><span class="ps-label">Total</span><span class="ps-total" id="psTotal">₹20</span></div>
+    </div>
+    <div class="card-sub">Payment method chuno:</div>
+    <div class="payment-methods">
+      <div class="pay-method selected" id="pm-counter" onclick="selectPayMethod('counter')">
+        <div class="pm-icon">💵</div>
+        <div><div class="pm-text">Counter Payment</div><div class="pm-sub">Dukaan par cash dein</div></div>
+      </div>
+      <div class="pay-method" id="pm-online" onclick="selectPayMethod('online')">
+        <div class="pm-icon">📱</div>
+        <div><div class="pm-text">Online Payment</div><div class="pm-sub">UPI / Card se pay karo</div></div>
+      </div>
+    </div>
+    <button class="btn btn-success" id="payBtn" onclick="processPayment()">✅ Payment Karo & Print</button>
+  </div>
+</div>
+
+<!-- ===== SCREEN 6: SUCCESS + PRINT ===== -->
+<div class="screen" id="screen6">
+  <div class="card">
+    <div class="success-box">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">Payment Successful!</div>
+      <div class="success-sub">Aapki <span id="successCopies">4</span> passport size photos ready hain</div>
+    </div>
+    <div class="card-title" style="margin-bottom:12px;">Print Preview (4×6 inch)</div>
+    <canvas id="printCanvas"></canvas>
+    <div id="printStatusBox" style="background:#eef2ff;border:1.5px solid #1a56db;border-radius:12px;padding:16px;text-align:center;margin-bottom:16px;">
+      <div id="printStatusIcon" style="font-size:32px;margin-bottom:8px;">⏳</div>
+      <div id="printStatusText" style="font-size:15px;font-weight:700;color:#1a56db;">Print order shop printer ko bheja ja raha hai...</div>
+      <div id="printStatusSub" style="font-size:12px;color:#64748b;margin-top:4px;">Counter se apna print collect karein</div>
+    </div>
+    <button class="btn btn-outline" onclick="resetAll()">🔄 Naya Photo</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <a href="https://instagram.com/rupeshkr73" target="_blank" class="ig-link" title="Instagram">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <circle cx="12" cy="12" r="4"/>
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+    </svg>
+  </a>
+</div>
+
+<!-- PRINT ONLY AREA -->
+<div id="printOnlyArea"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- @imgly/background-removal via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/background-removal.js"></script>
+<script src="api.js"></script>
+
+<script>
+// ============ STATE ============
+const state = {
+  currentScreen: 1,
+  sourceMethod: null,    // 'upload' | 'camera'
+  originalImage: null,   // original File / blob URL
+  bgRemovedBlob: null,   // after BG remove (null if skipped)
+  finalImageURL: null,   // after BG color applied
+  croppedImageURL: null, // after crop
+  bgColor: '#ffffff',
+  bgRemoved: false,
+  copies: 4,
+  price: 20,
+  payMethod: 'counter',
+  brightness: 100,
+  contrast: 100,
+  cropData: null,
+  stream: null,
+  shopId: null,           // QR se URL mein aata hai (?shop=SHOPID)
+};
+
+// Shop ID nikalo URL se: index.html?shop=SHOPID
+(function initShopId(){
+  const params = new URLSearchParams(window.location.search);
+  const shop = params.get('shop');
+  if(shop) state.shopId = shop.toUpperCase();
+})();
+
+const screenTitles = {
+  1:'Photo Select karo', '1b':'Camera', 2:'BG Option',
+  '2b':'BG Colour', 3:'Crop & Adjust', 4:'Copies', 5:'Payment', 6:'Print'
+};
+
+// ============ NAVIGATION ============
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen'+id).classList.add('active');
+  state.currentScreen = id;
+  document.getElementById('headerSub').textContent = screenTitles[id] || '';
+  updateStepBar();
+  const backBtn = document.getElementById('backBtn');
+  backBtn.classList.toggle('visible', id != 1);
+  window.scrollTo(0,0);
+}
+
+function goBack() {
+  const s = state.currentScreen;
+  if(s == '1b') { stopCamera(); showScreen(1); }
+  else if(s == 2) showScreen(1);
+  else if(s == '2b') showScreen(2);
+  else if(s == 3) showScreen(state.bgRemoved ? '2b' : 2);
+  else if(s == 4) showScreen(3);
+  else if(s == 5) showScreen(4);
+  else if(s == 6) showScreen(5);
+}
+
+function updateStepBar() {
+  const stepMap = {1:1,'1b':1,2:2,'2b':2,3:3,4:4,5:5,6:6};
+  const cur = stepMap[state.currentScreen] || 1;
+  for(let i=1;i<=6;i++){
+    const dot = document.getElementById('sdot'+i);
+    dot.classList.remove('active','done');
+    if(i < cur) dot.classList.add('done');
+    else if(i == cur) dot.classList.add('active');
+    if(i<6){
+      const line = document.getElementById('sline'+i);
+      if(line) line.classList.toggle('done', i < cur);
+    }
+  }
+}
+
+// ============ STEP 1: UPLOAD / CAMERA ============
+function chooseUpload() {
+  document.getElementById('fileInput').click();
+}
+function chooseCamera() {
+  // Try native camera first
+  if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    document.getElementById('cameraInput').click();
+  } else {
+    startWebCamera();
+  }
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')) { showToast('Sirf image file upload karo!'); return; }
+  state.sourceMethod = 'upload';
+  state.originalImage = URL.createObjectURL(file);
+  document.getElementById('previewImg').src = state.originalImage;
+  showScreen(2);
+}
+
+// ============ CAMERA (Desktop) ============
+async function startWebCamera() {
+  showScreen('1b');
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    document.getElementById('videoEl').srcObject = state.stream;
+  } catch(e) {
+    showToast('Camera access nahi mila. Permission check karo.');
+    showScreen(1);
+  }
+}
+
+function stopCamera() {
+  if(state.stream) {
+    state.stream.getTracks().forEach(t => t.stop());
+    state.stream = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('videoEl');
+  const canvas = document.getElementById('captureCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  stopCamera();
+  state.sourceMethod = 'camera';
+  state.originalImage = canvas.toDataURL('image/jpeg', 0.95);
+  document.getElementById('previewImg').src = state.originalImage;
+  showScreen(2);
+}
+
+// Mobile camera input
+document.getElementById('cameraInput').addEventListener('change', function(e) {
+  handleFileUpload(e);
+  state.sourceMethod = 'camera';
+});
+
+// ============ STEP 2: BG REMOVE ============
+function skipBGRemove() {
+  state.bgRemoved = false;
+  state.finalImageURL = state.originalImage;
+  loadCropImage(state.originalImage);
+  showScreen(3);
+}
+
+async function startBGRemove() {
+  showProcessing('AI BG Remove ho raha hai...', true);
+  try {
+    let imgBlob;
+    if(state.originalImage.startsWith('data:')) {
+      const res = await fetch(state.originalImage);
+      imgBlob = await res.blob();
+    } else {
+      const res = await fetch(state.originalImage);
+      imgBlob = await res.blob();
+    }
+
+    const config = {
+      publicPath: 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/',
+      progress: (key, current, total) => {
+        if(total>0) {
+          const pct = Math.round((current/total)*100);
+          document.getElementById('processingText').textContent = `BG Remove: ${pct}%`;
+        }
+      }
+    };
+
+    const result = await window.removeBackground(imgBlob, config);
+    state.bgRemovedBlob = result;
+    state.bgRemoved = true;
+    hideProcessing();
+    // Show BG color selector
+    await renderBGPreview('#ffffff');
+    showScreen('2b');
+  } catch(err) {
+    hideProcessing();
+    console.error('BG Remove error:', err);
+    showToast('BG Remove fail hua. Photo as-is use ho rahi hai.');
+    state.bgRemoved = false;
+    state.finalImageURL = state.originalImage;
+    loadCropImage(state.originalImage);
+    showScreen(3);
+  }
+}
+
+// ============ STEP 2B: BG COLOR ============
+async function renderBGPreview(color) {
+  if(!state.bgRemovedBlob) return;
+  const canvas = document.getElementById('bgPreviewCanvas');
+  const img = new Image();
+  const url = URL.createObjectURL(state.bgRemovedBlob);
+  img.onload = function() {
+    const maxW = Math.min(window.innerWidth - 72, 320);
+    const ratio = img.height / img.width;
+    canvas.width = maxW;
+    canvas.height = maxW * ratio;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+function selectBGColor(el) {
+  document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+  state.bgColor = el.dataset.color;
+  renderBGPreview(state.bgColor);
+}
+
+function applyCustomColor(val) {
+  state.bgColor = val;
+  document.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('selected'));
+  renderBGPreview(val);
+}
+
+async function confirmBGColor() {
+  showProcessing('Final photo taiyaar ho rahi hai...');
+  const canvas = document.createElement('canvas');
+  const img = new Image();
+  const url = URL.createObjectURL(state.bgRemovedBlob);
+  img.onload = function() {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = state.bgColor;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    state.finalImageURL = canvas.toDataURL('image/jpeg', 0.95);
+    hideProcessing();
+    loadCropImage(state.finalImageURL);
+    showScreen(3);
+  };
+  img.src = url;
+}
+
+// ============ STEP 3: CROP ============
+let cropState = {
+  isDragging: false, isResizing: false, dir: null,
+  startX: 0, startY: 0,
+  box: {x:0,y:0,w:0,h:0},
+  imgW: 0, imgH: 0
+};
+
+function loadCropImage(src) {
+  const cropImg = document.getElementById('cropImg');
+  cropImg.onload = initCropBox;
+  cropImg.src = src;
+  cropImg.style.filter = '';
+}
+
+function initCropBox() {
+  const cropImg = document.getElementById('cropImg');
+  const container = document.getElementById('cropContainer');
+  const iw = cropImg.offsetWidth;
+  const ih = cropImg.offsetHeight;
+  cropState.imgW = iw;
+  cropState.imgH = ih;
+  // Passport size ratio ~1:1.35
+  const bw = Math.min(iw * 0.65, ih / 1.35);
+  const bh = bw * 1.35;
+  const bx = (iw - bw) / 2;
+  const by = (ih - bh) / 2;
+  cropState.box = {x:bx, y:by, w:bw, h:bh};
+  updateCropBoxDOM();
+  setupCropEvents(container);
+}
+
+function updateCropBoxDOM() {
+  const box = document.getElementById('cropBox');
+  const b = cropState.box;
+  box.style.left = b.x+'px';
+  box.style.top = b.y+'px';
+  box.style.width = b.w+'px';
+  box.style.height = b.h+'px';
+}
+
+function setupCropEvents(container) {
+  const cropBox = document.getElementById('cropBox');
+  cropBox.removeEventListener('mousedown', onCropMouseDown);
+  cropBox.removeEventListener('touchstart', onCropTouchStart);
+  document.querySelectorAll('.crop-handle').forEach(h => {
+    h.removeEventListener('mousedown', onHandleMouseDown);
+    h.removeEventListener('touchstart', onHandleTouchStart);
+    h.addEventListener('mousedown', onHandleMouseDown);
+    h.addEventListener('touchstart', onHandleTouchStart, {passive:false});
+  });
+  cropBox.addEventListener('mousedown', onCropMouseDown);
+  cropBox.addEventListener('touchstart', onCropTouchStart, {passive:false});
+  document.addEventListener('mousemove', onCropMouseMove);
+  document.addEventListener('mouseup', onCropEnd);
+  document.addEventListener('touchmove', onCropTouchMove, {passive:false});
+  document.addEventListener('touchend', onCropEnd);
+}
+
+function onCropMouseDown(e) {
+  if(e.target.classList.contains('crop-handle')) return;
+  e.preventDefault();
+  cropState.isDragging = true;
+  cropState.startX = e.clientX - cropState.box.x;
+  cropState.startY = e.clientY - cropState.box.y;
+}
+function onCropTouchStart(e) {
+  if(e.target.classList.contains('crop-handle')) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  cropState.isDragging = true;
+  cropState.startX = t.clientX - cropState.box.x;
+  cropState.startY = t.clientY - cropState.box.y;
+}
+function onHandleMouseDown(e) {
+  e.preventDefault(); e.stopPropagation();
+  cropState.isResizing = true;
+  cropState.dir = e.target.dataset.dir;
+  cropState.startX = e.clientX;
+  cropState.startY = e.clientY;
+  cropState.origBox = {...cropState.box};
+}
+function onHandleTouchStart(e) {
+  e.preventDefault(); e.stopPropagation();
+  const t = e.touches[0];
+  cropState.isResizing = true;
+  cropState.dir = e.target.dataset.dir;
+  cropState.startX = t.clientX;
+  cropState.startY = t.clientY;
+  cropState.origBox = {...cropState.box};
+}
+function onCropMouseMove(e) { handleCropMove(e.clientX, e.clientY); }
+function onCropTouchMove(e) {
+  if(!cropState.isDragging && !cropState.isResizing) return; // let page scroll normally
+  e.preventDefault();
+  const t=e.touches[0];
+  handleCropMove(t.clientX, t.clientY);
+}
+function handleCropMove(cx, cy) {
+  const b = cropState.box;
+  const iw = cropState.imgW, ih = cropState.imgH;
+  if(cropState.isDragging) {
+    let nx = cx - cropState.startX;
+    let ny = cy - cropState.startY;
+    nx = Math.max(0, Math.min(iw - b.w, nx));
+    ny = Math.max(0, Math.min(ih - b.h, ny));
+    b.x = nx; b.y = ny;
+    updateCropBoxDOM();
+  } else if(cropState.isResizing) {
+    const dx = cx - cropState.startX;
+    const dy = cy - cropState.startY;
+    const ob = cropState.origBox;
+    let {x,y,w,h} = ob;
+    const minS = 50;
+    const dir = cropState.dir;
+    if(dir=='br'){w=Math.max(minS,ob.w+dx);h=Math.max(minS,ob.h+dy);}
+    else if(dir=='bl'){x=Math.max(0,ob.x+dx);w=Math.max(minS,ob.w-dx);h=Math.max(minS,ob.h+dy);}
+    else if(dir=='tr'){w=Math.max(minS,ob.w+dx);y=Math.max(0,ob.y+dy);h=Math.max(minS,ob.h-dy);}
+    else if(dir=='tl'){x=Math.max(0,ob.x+dx);y=Math.max(0,ob.y+dy);w=Math.max(minS,ob.w-dx);h=Math.max(minS,ob.h-dy);}
+    if(x+w>iw) w=iw-x;
+    if(y+h>ih) h=ih-y;
+    cropState.box={x,y,w,h};
+    updateCropBoxDOM();
+  }
+}
+function onCropEnd() { cropState.isDragging=false; cropState.isResizing=false; }
+
+function updateFilters() {
+  const b = document.getElementById('brightnessSlider').value;
+  const c = document.getElementById('contrastSlider').value;
+  state.brightness = b; state.contrast = c;
+  document.getElementById('brightnessVal').textContent = b+'%';
+  document.getElementById('contrastVal').textContent = c+'%';
+  document.getElementById('cropImg').style.filter = `brightness(${b}%) contrast(${c}%)`;
+}
+
+function confirmCrop() {
+  const cropImg = document.getElementById('cropImg');
+  const b = cropState.box;
+  const scaleX = cropImg.naturalWidth / cropState.imgW;
+  const scaleY = cropImg.naturalHeight / cropState.imgH;
+  const canvas = document.createElement('canvas');
+  // Passport size output: 413x531 px (35x45mm at ~300dpi ≈ 413x531)
+  canvas.width = 413;
+  canvas.height = 531;
+  const ctx = canvas.getContext('2d');
+  ctx.filter = `brightness(${state.brightness}%) contrast(${state.contrast}%)`;
+  ctx.drawImage(cropImg,
+    b.x*scaleX, b.y*scaleY, b.w*scaleX, b.h*scaleY,
+    0, 0, 413, 531
+  );
+  state.croppedImageURL = canvas.toDataURL('image/jpeg', 0.95);
+  state.cropData = b;
+  showScreen(4);
+}
+
+// ============ STEP 4: COPIES ============
+function selectCopies(n, price, id) {
+  state.copies = n; state.price = price;
+  document.querySelectorAll('.copy-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById(id).classList.add('selected');
+}
+
+function goToPayment() {
+  document.getElementById('psCopies').textContent = state.copies+' Copies';
+  document.getElementById('psRate').textContent = '₹'+state.price;
+  document.getElementById('psTotal').textContent = '₹'+state.price;
+  showScreen(5);
+}
+
+// ============ STEP 5: PAYMENT ============
+function selectPayMethod(m) {
+  state.payMethod = m;
+  document.querySelectorAll('.pay-method').forEach(p=>p.classList.remove('selected'));
+  document.getElementById('pm-'+m).classList.add('selected');
+  const btn = document.getElementById('payBtn');
+  if(m=='counter') { btn.textContent='✅ Counter par Pay Karo'; }
+  else { btn.textContent='📱 Online Pay Karo'; }
+}
+
+async function processPayment() {
+  if(state.payMethod === 'counter') {
+    showProcessing('Shop owner se confirm ho raha hai...');
+    await delay(1500);
+    hideProcessing();
+    await onPaymentSuccess();
+  } else {
+    showToast('Online payment: Shop owner ka gateway setup hoga.');
+    await delay(800);
+    await onPaymentSuccess();
+  }
+}
+
+async function onPaymentSuccess() {
+  document.getElementById('successCopies').textContent = state.copies;
+  buildPrintCanvas();
+  showScreen(6);
+  await submitPrintOrder();
+}
+
+// ============ STEP 6: PRINT CANVAS (preview only) ============
+function buildPrintCanvas() {
+  const canvas = document.getElementById('printCanvas');
+  // 4×6 inch at 150dpi = 600×900 px (preview)
+  const DPI = 150;
+  const W = 4 * DPI; // 600
+  const H = 6 * DPI; // 900
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,W,H);
+
+  const img = new Image();
+  img.onload = function() {
+    // Passport size at 150dpi: 35mm = ~206px, 45mm = ~266px
+    const pw = Math.round(35 * DPI / 25.4); // ~206
+    const ph = Math.round(45 * DPI / 25.4); // ~266
+    const gap = 6;
+    const margin = 12;
+
+    // Arrange copies
+    let col = 0, row = 0;
+    const cols = Math.floor((W - margin*2 + gap) / (pw + gap));
+
+    for(let i=0; i<state.copies; i++) {
+      const x = margin + col*(pw+gap);
+      const y = margin + row*(ph+gap);
+      ctx.drawImage(img, x, y, pw, ph);
+      col++;
+      if(col >= cols) { col=0; row++; }
+    }
+
+    // Scale for display
+    canvas.style.width = '100%';
+    canvas.style.maxWidth = '320px';
+  };
+  img.src = state.croppedImageURL;
+}
+
+// ============ SUBMIT PRINT ORDER — backend ki print queue mein jaata hai,
+// Print Agent (.exe) jo shop ke PC pe chal raha hai woh isko uthakar
+// seedha printer pe print bhej dega. Browser print dialog NAHI khulega. ============
+async function submitPrintOrder() {
+  const statusIcon = document.getElementById('printStatusIcon');
+  const statusText = document.getElementById('printStatusText');
+  const statusSub = document.getElementById('printStatusSub');
+
+  if(!state.shopId) {
+    statusIcon.textContent = '⚠️';
+    statusText.textContent = 'Shop ID nahi mila — QR dobara scan karo';
+    statusSub.textContent = 'Counter par sahayata lein';
+    return;
+  }
+
+  try {
+    statusText.textContent = 'Photo upload ho raha hai...';
+
+    // Step 1: cropped image ko backend/Cloudinary pe upload karo
+    const blob = await (await fetch(state.croppedImageURL)).blob();
+    const file = new File([blob], 'passport.jpg', { type: 'image/jpeg' });
+    const uploadRes = await API.uploadPhoto(file);
+
+    statusText.textContent = 'Print order shop printer ko bheja ja raha hai...';
+
+    // Step 2: print queue mein order daalo (shop ke Print Agent ko milega)
+    const amount = state.price || 0;
+    const submitRes = await fetch(`${(window.QR_API_URL || 'https://qrsephoto.onrender.com')}/api/print/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopId: state.shopId,
+        photoUrl: uploadRes.url,
+        copies: state.copies,
+        amount
+      })
+    }).then(r => r.json());
+
+    if(submitRes.success) {
+      statusIcon.textContent = '✅';
+      statusText.textContent = 'Print order shop ko mil gaya!';
+      statusSub.textContent = 'Counter se apna print collect karein';
+    } else {
+      throw new Error(submitRes.error || 'Order submit nahi hua');
+    }
+  } catch(err) {
+    console.error('Print submit error:', err);
+    statusIcon.textContent = '⚠️';
+    statusText.textContent = 'Order submit nahi ho saka';
+    statusSub.textContent = 'Counter par sahayata lein — ' + (err.message || '');
+  }
+}
+}
+
+// ============ RESET ============
+function resetAll() {
+  state.originalImage = null;
+  state.bgRemovedBlob = null;
+  state.finalImageURL = null;
+  state.croppedImageURL = null;
+  state.bgRemoved = false;
+  state.copies = 4; state.price = 20;
+  state.brightness = 100; state.contrast = 100;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('cameraInput').value = '';
+  document.getElementById('brightnessSlider').value = 100;
+  document.getElementById('contrastSlider').value = 100;
+  document.querySelectorAll('.copy-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('cc4').classList.add('selected');
+  selectPayMethod('counter');
+  showScreen(1);
+}
+
+// ============ UTILS ============
+function showProcessing(text, isBG=false) {
+  document.getElementById('processingText').textContent = text;
+  document.getElementById('processingOverlay').classList.add('show');
+}
+function hideProcessing() {
+  document.getElementById('processingOverlay').classList.remove('show');
+}
+function showToast(msg, dur=3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// Init
+updateStepBar();
+</script>
+</body>
+</html>

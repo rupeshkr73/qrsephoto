@@ -1,0 +1,3 @@
+# Render Static Site — Redirects
+# Root URL pe homepage dikhao
+/  /index.html  200
