@@ -424,19 +424,20 @@
     <div class="card-title">📸 Photo kaise lena hai?</div>
     <div class="card-sub">Gallery se upload karo ya sidha camera se photo lo</div>
     <div class="option-grid">
-      <div class="option-card" onclick="chooseUpload()">
+      <!-- Label directly wrap karta hai input ko — koi JS click() nahi, seedha browser handle karega -->
+      <label for="fileInput" class="option-card" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;">
         <div class="option-icon">🖼️</div>
         <div class="option-label">Upload karo</div>
         <div class="option-hint">Gallery / Files se</div>
-      </div>
-      <div class="option-card" onclick="chooseCamera()">
+      </label>
+      <label for="cameraInput" class="option-card" style="cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;">
         <div class="option-icon">📷</div>
         <div class="option-label">Camera</div>
         <div class="option-hint">Abhi click karo</div>
-      </div>
+      </label>
     </div>
-    <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)"/>
-    <input type="file" id="cameraInput" accept="image/*" capture="user" onchange="handleFileUpload(event)"/>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFileUpload(event)" style="display:none;position:absolute;"/>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFileUpload(event)" style="display:none;position:absolute;"/>
   </div>
 
   <!-- PRICING INFO -->
@@ -713,14 +714,16 @@ function updateStepBar() {
 }
 
 // ============ STEP 1: UPLOAD / CAMERA ============
+// Note: Label tags directly trigger file inputs — ye functions ab desktop webcam ke liye backup hain
 function chooseUpload() {
   document.getElementById('fileInput').click();
 }
 function chooseCamera() {
-  // Try native camera first
-  if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+  if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+    // Mobile pe label se directly cameraInput trigger hoga
     document.getElementById('cameraInput').click();
   } else {
+    // Desktop pe webcam use karo
     startWebCamera();
   }
 }
