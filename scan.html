@@ -731,38 +731,44 @@ function chooseCamera() {
 function handleFileUpload(e) {
   const file = e.target.files[0];
   if(!file) return;
-  if(!file.type.startsWith('image/')) { showToast('Sirf image file upload karo!'); return; }
+
+  // File type check
+  if(!file.type.startsWith('image/')) {
+    showToast('Sirf image file upload karo!');
+    return;
+  }
 
   const isCamera = e.target.id === 'cameraInput';
   state.sourceMethod = isCamera ? 'camera' : 'upload';
 
-  // Image load hone ka wait karo phir screen change karo
+  showProcessing('Photo load ho rahi hai...');
+
   const reader = new FileReader();
+
   reader.onload = function(ev) {
-    state.originalImage = ev.target.result;
-    const previewImg = document.getElementById('previewImg');
-    previewImg.onload = function() {
-      showScreen(2);
-    };
-    previewImg.onerror = function() {
-      // onerror pe bhi try karo
-      showScreen(2);
-    };
-    previewImg.src = state.originalImage;
-    // Fallback — agar onload trigger na ho 2 sec mein
-    setTimeout(() => {
-      if(state.currentScreen === 1 || state.currentScreen === '1b') {
-        showScreen(2);
-      }
-    }, 2000);
+    const dataURL = ev.target.result;
+    if(!dataURL) {
+      hideProcessing();
+      showToast('Photo load nahi hui — dobara try karo');
+      return;
+    }
+    state.originalImage = dataURL;
+    document.getElementById('previewImg').src = dataURL;
+    hideProcessing();
+    // Direct screen change — koi onload wait nahi
+    showScreen(2);
   };
+
   reader.onerror = function() {
-    showToast('File read karne mein error aaya — dobara try karo');
+    hideProcessing();
+    showToast('File read error — dobara try karo');
   };
+
+  // Pehle read karo, phir reset karo
   reader.readAsDataURL(file);
 
-  // Input reset karo taaki same file dobara select ho sake
-  e.target.value = '';
+  // Reset input after small delay taaki read complete ho
+  setTimeout(() => { e.target.value = ''; }, 500);
 }
 
 // ============ CAMERA (Desktop) ============
